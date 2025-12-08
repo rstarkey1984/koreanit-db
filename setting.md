@@ -1,30 +1,114 @@
-- /etc/wsl.conf
+# 4. MySQL 워크벤치 설정
+
+## Database 메뉴에서 Manage Connections 선택
+
+1. 왼쪽아래 `[ New ]` 버튼 클릭
+
+2. `Connection Name` : wsl-ubuntu24
+
+3. `Hostname` : 127.0.0.1
+
+4. `Port` : 3308
+
+5. `Username` : test
+
+6. `Password` : [ Store in Vault ] 클릭해서 비밀번호 test123 입력 후 엔터
+
+7. `Default Schema` : testdb
+
+## 참고) MySQL Workbench 관리자 권한으로 모든 기능 쓰기
+```bash
+sudo mysql
 ```
-sudo sh -c 'cat > /etc/wsl.conf << "EOF"
-[boot]
-# ssh 등 systemd 서비스 사용하려면 권장
-systemd=true           
-
-[user]
-# WSL 접속 시 자동 로그인할 리눅스 계정
-default=ubuntu
-
-[automount]
-# /mnt/c 같은 자동 마운트 중지
-enabled=false          
-
-[interop]
-# 윈도우 exe 실행 금지
-enabled=false          
-# 윈도우 PATH 섞기 끄기
-appendWindowsPath=false 
-
-[network]
-# WSL Ubuntu 에서 사용할 hostname  
-hostname=ubuntu22 
-EOF'
+```sql
+CREATE USER 'admin'@'localhost' IDENTIFIED BY 'admin123';
+```
+```sql
+GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
 ```
 
+1. Database 메뉴에서 Manage Connections 선택
+
+2. 왼쪽아래 `[ New ]` 버튼 클릭
+
+3. `Connection Name` : wsl-ubuntu24
+
+4. `Connection Method` : Standard TCP/IP over SSH 선택
+
+## 4-1. Connection - Parameters 탭에서
+
+1. `SSH Hostname` : localhost:2222
+
+2. `SSH Username` : ubuntu
+
+3. `SSH Key File` : 비공개키 선택 ( 예: `C:\Users\사용자\.ssh\myfirstkey` )
+
+4. `MySQL Hostname` : 127.0.0.1
+
+5. `MySQL Server Port` : 3308
+
+6. `Username` : test
+
+7. `Password` : [ Store in Vault ] 클릭해서 비밀번호 test123 입력 후 엔터
+
+8. `Default Schema` : testdb
+
+## 4-2. Remote Management
+
+1. `SSH login based management` 선택
+
+2. `Hostname` : localhost
+
+3. `Username` : ubuntu
+
+4. `Authenticate Using SSH Key` : 체크
+
+5. `SSH Key Path` : 비공개키 선택 ( 예: `C:\Users\사용자\.ssh\myfirstkey` )
+
+## 4-3. System Profile
+
+1. `System Type` : Linux
+
+2. `Configuration File` : /etc/mysql/mysql.conf.d/mysqld.cnf
+
+3. `Start MySQL` : sudo systemctl start mysql
+
+4. `Stop MySQL` : sudo systemctl stop mysql
+
+
+- mysql sys 스키마 날렸을때,
+
+```
+# 백업
+sudo mysqldump --all-databases --routines --events > alldb_backup.sql
+
+# 초기화
+sudo apt purge -y mysql-server mysql-client mysql-common
+sudo rm -rf /var/lib/mysql
+sudo rm -rf /etc/mysql
+sudo apt autoremove -y
+
+# 재설치
+sudo apt install -y mysql-server
+
+# 복구
+sudo mysql < alldb_backup.sql
+```
+
+- test 사용자 추가
+```bash
+sudo adduser test && sudo usermod -aG sudo test && sudo su - test
+```
+
+- test 사용자 삭제
+```bash
+sudo userdel -r test
+```   
+
+- WSL 포트포워딩 확인:
+```powershell
+> netsh interface portproxy show v4tov4
+```
 
 - Oracle Linux에서 systemctl 자동완성 켜는 방법  
 
@@ -87,16 +171,16 @@ sudo systemctl enable oracle-free   # 부팅 시 자동 시작
 
 - 👍 주요 기능 (무조건 알아둬야 함)
 
-✅ 1. 리스너 시작(Start)
+1. 리스너 시작(Start)
 lsnrctl start
 
 
 Oracle Database가 밖에서 접속받으려면 반드시 리스너가 떠 있어야 함.
 
-✅ 2. 리스너 종료(Stop)
+2. 리스너 종료(Stop)
 lsnrctl stop
 
-✅ 3. 리스너 상태 확인(Status)
+3. 리스너 상태 확인(Status)
 lsnrctl status
 
 
@@ -152,3 +236,4 @@ Services Summary...
   -- 또는
   -- GRANT CONNECT, RESOURCE TO student01;
   ```
+
