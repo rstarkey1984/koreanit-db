@@ -20,7 +20,7 @@
 
 - [WHERE / ORDER BY / LIMIT](22-sql-where.md)
 
-- [JOIN / GROUP BY / HAVING / 집계 함수](23-sql-join.md)
+- [JOIN / 집계 함수 / GROUP BY / HAVING](23-sql-join.md)
 
 ## 🧠 3. [논리 데이터베이스 설계](30-logical-database.md)
 
