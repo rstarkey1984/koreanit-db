@@ -79,8 +79,7 @@ Ubuntu가 처음 실행되면 사용자 이름/비밀번호를 입력합니다.
 ## 2-2. /etc/wsl.conf 설정 (중요)
 
 > wsl.conf 설정 파일의 역할   
-> -> WSL(Windows Subsystem for Linux) 환경을 제어하는 설정 파일. WSL 내부에서 systemd 활성화 및 Windows 환경과 분리를 위해 아래와 같이 설정. 
-
+> -> WSL(Windows Subsystem for Linux) 환경을 제어하는 설정 파일. WSL 내부에서 systemd 활성화 및 Windows 환경과 분리를 위해 아래와 같이 설정.    
 > systemd 란 ? Linux의 서비스/프로세스/부팅 전체를 관리하는 핵심 엔진  
 
 ```bash

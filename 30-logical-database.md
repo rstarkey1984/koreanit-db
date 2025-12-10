@@ -200,7 +200,7 @@ User --- UserProfile? ( ? 표시는 존재 여부가 선택적(optional)임을 �
 핵심 테이블(users)을 가볍게 유지할 수 있다.
 
 ## 3-3. N:M 관계
-> N:M 관계는 교차 테이블을 사용해 1:N + 1:N 구조로 분해한다
+> MySQL 같은 관계형 DB는 N:M을 직접 표현할 수 없어서 교차 테이블을 사용해 1:N + 1:N 구조로 분해한다
 
 ### 관계(Cardinality) 표현 기호
 
@@ -313,10 +313,12 @@ user_interests 테이블 내용
 > 복합키(PK가 여러 컬럼)일 때, 키의 일부에 종속된 속성을 제거해야 한다.
 
 ### OrderProducts 개체 - 잘못된 예 (정규화 이전 구조)
+> 이 테이블의 PK 는 (order_id, product_id) 복합키라고 가정한다.
+
 | 속성명           | 설명              |
 | ------------- | --------------- |
-| order_id      | 주문 ID ( PK ) |
-| product_id    | 상품 ID ( PK ) |
+| order_id      | 주문 ID ( PK 복합키 ) |
+| product_id    | 상품 ID ( PK 복합키 ) |
 | user_id       | 주문한 사용자 ID      |
 | product_name  | 주문된 상품 이름       |
 | product_price | 주문된 상품 가격       |
@@ -342,7 +344,8 @@ user_interests 테이블 내용
 
 - product_name, product_price 도 product_id 기준으로 종속됨
 
-  즉, 복합키 전체에 완전 종속되지 않고 일부 키에만 종속될 경우 2NF 위반
+  즉 user_id, created_at 은 order_id만 알면 결정되고, product_name, product_price는 product_id만 알면 결정되므로
+  "기본키 전체가 아니라, 일부 키에만 종속" → 부분 함수 종속 → 2NF 위반
 
 
 ### 올바른 구조
@@ -374,7 +377,7 @@ user_interests 테이블 내용
 
 | 속성명        | 설명                 |
 | ---------- | ------------------ |
-| order_id   | Order 개체 ID ( PK )  |
+| order_id   | Order 개체 ID ( PK  )  |
 | product_id | Product 개체 ID ( PK )  |
 | quantity   | 주문한 상품 수량          |
 | price      | 주문 당시 상품 가격(스냅샷)   |

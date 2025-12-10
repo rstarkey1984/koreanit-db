@@ -19,11 +19,11 @@
 
 # 0. MySQL Workbench 설치
 
-다운로드 `https://dev.mysql.com/downloads/workbench/` 
+다운로드 `https://www.npackd.org/p/com.mysql.dev.MySQLWorkbench/8.0.25?utm_source=chatgpt.com` 
 
 ( 선택 ) Microsoft Visual C++ 2015-2022 Redistributable (x64) 다운로드 `https://aka.ms/vc14/vc_redist.x64.exe`
 
-## 0-1. 접속하기 
+## 0-1. 접속하기
 
 ### 1. Database 메뉴에서 **Manage Connections** 선택
 
@@ -99,11 +99,11 @@ users 테이블 예시:
 
 ## 1-4. 테이블 설계에서 중요한 제약조건 (PK / UNIQUE)
 
-### 1) Primary Key (PK) — 기본 키
+### 1) Primary Key (PK) - 기본 키
 > 테이블에서 각 행(Row)을 유일하게 구분하는 컬럼. 한 테이블에 단 하나만 존재할 수 있다.
 
 
-### 2) UNIQUE — 중복 불가 조건
+### 2) UNIQUE - 중복 불가 조건
 > 중복을 허용하지 않지만 NULL은 허용하는 제약조건. 한 테이블에 여러 개 존재할 수 있다.
 
 | 항목       | PK        | UNIQUE                       |
@@ -127,25 +127,53 @@ DROP TABLE IF EXISTS users;
 
 -- 1. users 테이블 생성 
 CREATE TABLE users (
-    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,   
-    username    VARCHAR(50)  NOT NULL UNIQUE,            
-    password    VARCHAR(255) NOT NULL,
-    nickname    VARCHAR(50)  NOT NULL,
-    email       VARCHAR(100) NOT NULL,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME     NULL     DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
-);
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+        COMMENT '사용자 고유 PK. 자동 증가 일련번호.',
+        
+    username VARCHAR(50) NOT NULL UNIQUE
+        COMMENT '로그인 ID. 시스템 내에서 UNIQUE.',
+        
+    password VARCHAR(255) NOT NULL
+        COMMENT '비밀번호 해시 값(평문 저장 금지).',
+        
+    nickname VARCHAR(50) NOT NULL
+        COMMENT '사용자 표시 이름(별명). 화면에 노출되는 이름.',
+        
+    email VARCHAR(100) NOT NULL
+        COMMENT '사용자 이메일 주소. 계정 식별 및 알림용.',
+        
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        COMMENT '계정 생성 시각. DEFAULT CURRENT_TIMESTAMP.',
+        
+    updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+        COMMENT '계정 수정 시각. UPDATE 시 자동 갱신.'
+)
+COMMENT = '사용자 계정 정보를 저장하는 테이블';
 
 -- 2. posts(게시글) 테이블 생성 
 CREATE TABLE posts (
-    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id     INT UNSIGNED NOT NULL, 
-    title       VARCHAR(200) NOT NULL,
-    content     TEXT         NOT NULL,
-    view_count  INT UNSIGNED NOT NULL DEFAULT 0,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME     NULL     DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
-);
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+        COMMENT '게시글 고유 PK. 자동 증가 일련번호.',
+        
+    user_id INT UNSIGNED NOT NULL
+        COMMENT '게시글 작성자 ID. users.id 키 참조.',
+        
+    title VARCHAR(200) NOT NULL
+        COMMENT '게시글 제목.',
+        
+    content TEXT NOT NULL
+        COMMENT '게시글 본문 내용.',
+        
+    view_count INT UNSIGNED NOT NULL DEFAULT 0
+        COMMENT '게시글 조회수. 기본값 0.',
+        
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        COMMENT '게시글 생성 시각.',
+        
+    updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+        COMMENT '게시글 수정 시각. UPDATE 시 자동 갱신.'
+)
+COMMENT = '사용자가 작성한 게시글 정보를 저장하는 테이블';
 ```
 
 ## 2-1. users 테이블 구조 
