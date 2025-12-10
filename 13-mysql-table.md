@@ -94,7 +94,7 @@ users 테이블 예시:
 | **문자열 (String)**          | **VARCHAR(n)**   | 길이가 변하는 문자열. username, email, title 등에 사용               |
 |                           | **TEXT**         | 긴 글 저장. 게시글 content, 댓글 내용에 사용                          |
 | **날짜 / 시간 (Date & Time)** | **DATETIME**     | ‘YYYY-MM-DD HH:MM:SS’. INSERT 시 CURRENT_TIMESTAMP 사용 가능 |
-| **논리형 (Boolean)**         | **TINYINT(1)**   | MySQL의 boolean 대체 타입                                    |
+| **논리형 (Boolean)**         | **TINYINT**   | MySQL의 boolean 대체 타입                                    |
 
 
 ## 1-4. 테이블 설계에서 중요한 제약조건 (PK / UNIQUE)
@@ -239,7 +239,7 @@ DESC posts;
 | **updated_at** | `DATETIME`     | YES  |     | NULL              | on update CURRENT_TIMESTAMP | UPDATE될 때 자동으로 현재 시간으로 갱신 |
 
 
-
+---
 
 # 3. 초기 데이터 생성 ( PROCEDURE 이용 )
 > PROCEDURE 는 여러 SQL 명령을 하나로 묶어 저장해두었다가, 필요할 때 한 번에 실행하는 ‘저장된 SQL 함수’이다.
