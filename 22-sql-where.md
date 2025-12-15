@@ -2,19 +2,15 @@
 
 ## 📘 학습 개요
 
-SQL에서 가장 많이 쓰는 3대 조회 문법이다.
-
-WHERE : 조건에 맞는 행만 가져오기
-
-ORDER BY : 정렬하기
-
-LIMIT : 원하는 개수만큼만 가져오기
+WHERE / ORDER BY / LIMIT 는 SQL에서 가장 많이 쓰는 3대 조회 문법이다.
 
 ## 💡 주요 내용
 
 - WHERE - 조건으로 필터링하기
 
 - ORDER BY - 정렬하기
+
+- LIMIT - 원하는 개수만 가져오기
 
 ---
 
@@ -197,7 +193,7 @@ LIMIT 5;
 
 # 🧩 실습 / 과제
 
-## 0. 실습용 더미 데이터(dump data, seed data) 업데이트
+## 0. 실습용 데이터 업데이트
 ```sql
 UPDATE posts
 SET view_count = 120

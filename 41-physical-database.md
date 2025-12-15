@@ -201,37 +201,6 @@ is_active TINYINT NOT NULL DEFAULT 1
 | 생성일시    | DATETIME            | 장기 기록 적합  |
 | 수정일시    | DATETIME           | 장기 기록 적합   |
 
---- 
-
-# 6. 샘플 테이블 예시 (products)
-```sql
-CREATE TABLE products (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY
-        COMMENT '상품 고유 ID',
-
-    name VARCHAR(100) NOT NULL
-        COMMENT '상품 이름',
-
-    description TEXT NULL
-        COMMENT '상품 상세 설명',
-
-    price DECIMAL(10,2) NOT NULL DEFAULT 0.00
-        COMMENT '상품 가격',
-
-    stock INT UNSIGNED NOT NULL DEFAULT 0
-        COMMENT '재고 수량',
-
-    is_active TINYINT NOT NULL DEFAULT 0
-        COMMENT '판매 상태 (1=판매중, 0=비활성)',
-
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        COMMENT '등록 일시',
-
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                     ON UPDATE CURRENT_TIMESTAMP
-        COMMENT '수정 일시'
-) COMMENT = '상품 정보를 저장하는 테이블';
-```
 
 ---
 

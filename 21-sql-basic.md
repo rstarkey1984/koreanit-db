@@ -8,8 +8,7 @@
 
 를 MySQL 기준으로 연습하는 내용을 다룹니다.
 
-앞에서 만든 `testdb` 데이터베이스와  
-`users`, `posts` 테이블을 그대로 사용해서 실습합니다.
+앞에서 만든 `testdb` 데이터베이스와 `users`, `posts` 테이블을 그대로 사용해서 실습합니다.
 
 ## 💡 주요 내용
 
@@ -198,10 +197,10 @@ DELETE FROM users
 WHERE username = 'batch01';
 ```
 
-## 4-2. view_count 가 10인 게시글 삭제 (예시)
+## 4-2. id 가 1 인 게시글 삭제 (예시)
 ```sql
 DELETE FROM posts
-WHERE view_count = 10;
+WHERE id = 1;
 ```
 
 ## 4-3. WHERE 없이 DELETE 하면?

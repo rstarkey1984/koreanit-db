@@ -38,9 +38,7 @@
 
 - [데이터 타입 매핑(MySQL 기준)](41-physical-database.md)
 
-- 인덱스 설계(PK/FK/보조 인덱스)
-
-- 제약 조건 정의
+- [제약 조건 정의 와 인덱스 설계(PK/보조 인덱스)](42-physical-constraints-index.md)
 
 - 물리 ERD → 스키마 생성
 
