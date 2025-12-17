@@ -22,17 +22,7 @@
 
 - [JOIN / 집계 함수 / GROUP BY / HAVING](23-sql-join.md)
 
-## 🧠 3. [논리 데이터베이스 설계](30-logical-database.md)
-
-- 요구사항 분석(명사/동사 도출)
-
-- 개체/속성 정의
-
-- 관계 정의(1:1, 1:N, N:M → 교차 테이블)
-
-- 정규화(1NF, 2NF, 3NF)
-
-- 논리 ERD 작성
+## 🧠 [3. 논리 데이터베이스 설계](30-logical-database.md)
 
 ## 🛠️ 4. 물리 데이터베이스 설계
 
@@ -40,21 +30,11 @@
 
 - [제약 조건 정의 와 인덱스 설계(PK/보조 인덱스)](42-physical-constraints-index.md)
 
-- 물리 ERD → 스키마 생성
+- [물리 ERD → 스키마 생성 (MySQL Workbench 기반)](43-physical-erd.md)
 
-- 반정규화 전략
+- [반정규화 전략](44-physical-denormalization.md)
 
-## 🧪 5. SQL 고급 (Advanced SQL)
-
-- JOIN 심화
-
-- 서브쿼리(Subquery)
-
-- 고급 집계(Aggregation)
-
-- 트랜잭션 및 동시성
-
-- SQL 최적화 기초
+## 🧪 [5. SQL 고급 (Advanced SQL)](50-advanced-sql.md)
 
 ## 🎯 강의 목표
 
@@ -65,3 +45,4 @@
 - 효율적인 SQL 작성
 
 - 기본 튜닝 및 인덱싱 이해  
+

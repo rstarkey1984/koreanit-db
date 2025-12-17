@@ -1,3 +1,13 @@
+```sql
+SET FOREIGN_KEY_CHECKS = 0;
+
+TRUNCATE TABLE comments;
+TRUNCATE TABLE posts;
+TRUNCATE TABLE users;
+
+SET FOREIGN_KEY_CHECKS = 1;
+```
+
 # 6. 샘플 테이블 예시 (products)
 ```sql
 -- 상품 테이블

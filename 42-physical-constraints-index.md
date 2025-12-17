@@ -100,7 +100,7 @@ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY
 
 특징:
 
-- UNIQUE 컬럼은 NULL을 여러 개 허용할 수 있다
+- (MySQL 기준) UNIQUE 컬럼은 NULL을 여러 개 허용할 수 있다.
 
 - 중복 방지가 목적이면 UNIQUE 제약 조건을 사용한다
 
@@ -157,9 +157,6 @@ B+Tree 구조
 
 - NULL 불가
 
-- InnoDB에서는 클러스터드 인덱스    
-  ( 클러스터드 인덱스란 테이블 데이터 자체가 PK 기준으로 정렬되어 저장되는 구조이다. )
-
 ## 4-2. PK 설계 기준
 
 - 값이 변하지 않아야 한다
@@ -215,7 +212,7 @@ LIMIT 10;
 
 추천 인덱스:
 ```sql
-CREATE INDEX idx_posts_user_created
+CREATE INDEX user_id_created_at
 ON posts(user_id, created_at);
 ```
 
@@ -260,19 +257,9 @@ ON posts(user_id, created_at);
 | 복합 인덱스          | 다중 조건 최적화  | 컬럼 순서 중요  | 여러 개 가능 |
 
 
-## 6-3. PRIMARY KEY 인덱스와 보조 인덱스 구조 비교
-| 구분        | PRIMARY KEY 인덱스 | 보조 인덱스      |
-| --------- | --------------- | ----------- |
-| 인덱스 유형    | 클러스터드           | 논클러스터드      |
-| 실제 데이터 포함 | 포함함             | 포함 안 함      |
-| 저장 구조     | PK + 전체 row     | 인덱스 컬럼 + PK |
-| 조회 단계     | 1단계             | 2단계         |
-| 설계 중요도    | 매우 높음           | 상황별 판단      |
-
 ---
 
 # 🧩 실습 / 과제
-
 
 ## 1. 제약 조건이 없는 테이블의 문제점 체험
 
@@ -317,18 +304,26 @@ INSERT INTO users_raw (email, username) VALUES
 
 ## 3. 보조 인덱스 없을 때 vs 있을 때 비교
 
-### 3-1. posts 테이블 보조 인덱스 ( idx_posts_user_created ) 삭제
-
-### 3-2. 더미 데이터 insert
+### 3-0. 시드 데이터 추가 ( 100만건 )
 ```sql
-sudo mysql testdb < posts_100k_dump.sql
+SET SESSION cte_max_recursion_depth = 1000000;
+
+-- ===== posts (1000k)
+INSERT INTO posts (user_id, title, content, view_count, created_at)
+SELECT
+  FLOOR(1 + RAND() * 50),
+  CONCAT('게시글 제목 ', n),
+  CONCAT('게시글 내용 ', n),
+  FLOOR(RAND() * 50000),
+  NOW() - INTERVAL FLOOR(RAND() * 365) DAY
+FROM (
+  WITH RECURSIVE seq(n) AS (
+    SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n < 1000000
+  ) SELECT n FROM seq
+) t;
 ```
 
-### (참고) 테이블 dump
-```sql
-sudo mysqldump testdb posts --no-create-info > posts_insert_only.sql
-```
-
+### 3-1. (선택) posts 테이블 보조 인덱스 ( 1. user_id 2. created_at ) 삭제
 
 ### 3-2. 아래 쿼리 실행
 ```sql
@@ -345,6 +340,4 @@ explain SELECT * FROM testdb.posts where user_id = 100 order by created_at desc
 ### 3-4. user_id, created_at 복합 인덱스 생성 후 실행결과 보기
 ```sql
 explain SELECT * FROM testdb.posts where user_id = 100 order by created_at desc
-
-SELECT * FROM testdb.posts where user_id = 100 order by created_at desc
 ```
