@@ -48,4 +48,4 @@
 
 ## [6. SQL 프로시저 (Stored Procedure)](60-sql-procedure.md)
 
-## [7. 웹 애플리케이션에서 SQL 실행하기](70-web-sql.md)
+## [7. SQL 응용 (웹 애플리케이션에서 SQL 실행하기)](70-web-sql.md)

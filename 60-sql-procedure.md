@@ -13,8 +13,6 @@
 
 - 애플리케이션 코드와 DB 로직의 역할 분리
 
-를 이해하는 것을 목표로 한다.
-
 ## 🎯 학습 목표
 
 이 강의를 마치면 다음을 할 수 있다.
@@ -145,8 +143,10 @@ DELIMITER ;
 
 ---
 
-# 3. 변수 사용하기
-## 3-1. DECLARE 변수
+# 3. 변수 사용하기 ( DECLARE )
+## 3-1. 숫자(INT) 형 변수
+> DECLARE로 만든 변수는 프로시저 실행 동안만 존재   
+> 애플리케이션의 지역변수(메서드 안 변수)와 동일한 개념
 ```sql
 CREATE PROCEDURE var_test()
 BEGIN
@@ -161,6 +161,70 @@ END
 - DECLARE 는 BEGIN 바로 아래에서만 가능
 
 - 지역 변수 개념
+
+- DEFAULT로 초기값을 줄 수 있음
+
+## 3-2. 문자열(VARCHAR) 변수
+
+```sql
+CREATE PROCEDURE var_string_test()
+BEGIN
+    DECLARE username VARCHAR(50) DEFAULT 'guest';
+    DECLARE msg VARCHAR(200);
+
+    SET msg = CONCAT('Hello, ', username);
+
+    SELECT msg;
+END
+```
+
+- VARCHAR(50)처럼 길이를 지정해야 함
+
+- 문자열 합치기는 CONCAT() 사용
+
+
+## 3-3. 숫자, 날짜 변수도 가능
+```sql
+CREATE PROCEDURE var_multi_type_test()
+BEGIN
+    DECLARE cnt INT DEFAULT 0;
+    DECLARE today DATE;
+    DECLARE now_dt DATETIME;
+
+    SET cnt = 10;
+    SET today = CURDATE();
+    SET now_dt = NOW();
+
+    SELECT cnt, today, now_dt;
+END
+```
+
+- INT, BIGINT : 숫자
+
+- VARCHAR(n), TEXT : 문자열
+
+- DATE, DATETIME, TIMESTAMP : 날짜/시간
+
+## 3-4. SELECT 결과를 변수에 담기: SELECT ... INTO
+> “조회한 값을 변수에 저장해서, 다음 IF/WHILE에서 쓰기”가 핵심이다.
+
+```sql
+CREATE PROCEDURE get_post_title(IN p_post_id INT)
+BEGIN
+    DECLARE v_title VARCHAR(200);
+
+    SELECT title
+    INTO v_title
+    FROM posts
+    WHERE id = p_post_id;
+
+    SELECT v_title AS title;
+END
+```
+
+- SELECT ... INTO 변수는 “결과를 변수로 받겠다”는 뜻
+
+- 보통 IF 조건 판단이나 계산 후 UPDATE에 쓰임
 
 ---
 
@@ -193,7 +257,7 @@ CREATE PROCEDURE select_posts(p_post_id INT)
 BEGIN
     IF p_post_id IS NOT NULL THEN
         SELECT * FROM posts
-        WHERE id = 1;
+        WHERE id = p_post_id;
     END IF;
 END
 ```
@@ -327,6 +391,38 @@ DROP PROCEDURE IF EXISTS 프로시저이름;
 
 ## 1. 게시글 조회 시 조회수를 증가시키는 프로시저 작성
 
+조회수 증가 프로시저 예제
+```sql
+CREATE PROCEDURE increase_view(p_post_id INT)
+BEGIN
+    IF p_post_id IS NOT NULL THEN
+        UPDATE posts
+        SET view_count = view_count + 1
+        WHERE id = p_post_id;
+    END IF;
+END
+```
+
+게시글 조회 프로시저 예제
+```sql
+CREATE PROCEDURE select_posts(p_post_id INT)
+BEGIN
+    IF p_post_id IS NOT NULL THEN
+        SELECT * FROM posts
+        WHERE id = p_post_id;
+    END IF;
+END
+```
+
+게시글 조회 시 조회수를 증가 시키는 프로시저 예제
+```sql
+CREATE PROCEDURE `increase_view_and_select_posts`(p_post_id INT)
+BEGIN
+    -- 코드 작성
+    
+END
+```
+
 ## 2. 10분 제한 조회수 증가 프로시저 작성
 
 ### 조회 로그 테이블 설계
@@ -374,4 +470,31 @@ BEGIN
 
   END IF;
 END
+```
+
+
+## 3. post_view.php 코드에서 쿠키기반 조회수 증가 쿼리 로직 변경
+
+쿼리예시:
+```sql
+call increase_post_view_with_interval(:p_post_id, :p_viewer_key, 1)
+```
+
+전체코드 예시
+```php
+// --------------------------------------------------
+// 조회수 증가 - 프로시저 사용
+// --------------------------------------------------
+$viewer_key = '';
+if (isset($_SESSION['user']['id'])) {
+  $viewer_key = (string) $_SESSION['user']['id'];
+} elseif (isset($_COOKIE['PHPSESSID'])) {
+  $viewer_key = $_COOKIE['PHPSESSID'];
+}
+
+$increase_post_view_with_interval_sql = "";
+$updateStmt = $pdo->prepare($increase_post_view_with_interval_sql);
+//$updateStmt->bindValue(":p_post_id", $postId, PDO::PARAM_INT);
+//$updateStmt->bindValue(":p_viewer_key", $viewer_key, PDO::PARAM_STR);
+$updateStmt->execute();
 ```
