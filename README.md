@@ -6,36 +6,6 @@
 
 --- 
 
-## 📦 1. 개발환경 구축
-
-- [WSL2 + Ubuntu 24.04](11-wsl-ubuntu.md)
-
-- [MySQL Server 설치 및 설정](12-mysql.md)
-
-- [MySQL 테이블 생성 및 초기 데이터 적재](13-mysql-table.md)
-
-## 🧱 2. SQL 연습
-
-- [SELECT / INSERT / UPDATE / DELETE](21-sql-basic.md)
-
-- [WHERE / ORDER BY / LIMIT](22-sql-where.md)
-
-- [JOIN / 집계 함수 / GROUP BY / HAVING](23-sql-join.md)
-
-## 🧠 [3. 논리 데이터베이스 설계](30-logical-database.md)
-
-## 🛠️ 4. 물리 데이터베이스 설계
-
-- [데이터 타입 매핑(MySQL 기준)](41-physical-database.md)
-
-- [제약 조건 정의 와 인덱스 설계(PK/보조 인덱스)](42-physical-constraints-index.md)
-
-- [물리 ERD → 스키마 생성 (MySQL Workbench 기반)](43-physical-erd.md)
-
-- [반정규화 전략](44-physical-denormalization.md)
-
-## 🧪 [5. SQL 고급 (Advanced SQL)](50-advanced-sql.md)
-
 ## 🎯 강의 목표
 
 - 요구사항 기반 모델링 능력
@@ -46,3 +16,36 @@
 
 - 기본 튜닝 및 인덱싱 이해  
 
+## 1. 개발환경 구축
+
+- [WSL2 + Ubuntu 24.04](11-wsl-ubuntu.md)
+
+- [MySQL Server 설치 및 설정](12-mysql.md)
+
+- [MySQL 테이블 생성 및 초기 데이터 적재](13-mysql-table.md)
+
+## 2. SQL 연습
+
+- [SELECT / INSERT / UPDATE / DELETE](21-sql-basic.md)
+
+- [WHERE / ORDER BY / LIMIT](22-sql-where.md)
+
+- [JOIN / 집계 함수 / GROUP BY / HAVING](23-sql-join.md)
+
+## [3. 논리 데이터베이스 설계](30-logical-database.md)
+
+## 4. 물리 데이터베이스 설계
+
+- [데이터 타입 매핑(MySQL 기준)](41-physical-database.md)
+
+- [제약 조건 정의 와 인덱스 설계(PK/보조 인덱스)](42-physical-constraints-index.md)
+
+- [물리 ERD → 스키마 생성 (MySQL Workbench 기반)](43-physical-erd.md)
+
+- [반정규화 전략](44-physical-denormalization.md)
+
+## [5. SQL 고급 (Advanced SQL)](50-advanced-sql.md)
+
+## [6. SQL 프로시저 (Stored Procedure)](60-sql-procedure.md)
+
+## [7. 웹 애플리케이션에서 SQL 실행하기](70-web-sql.md)

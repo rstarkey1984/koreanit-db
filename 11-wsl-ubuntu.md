@@ -48,11 +48,12 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 ## 1-4. WSL 기본 버전을 WSL2 로 변경
 > WSL에서 새로 설치되는 모든 리눅스 배포판을 기본적으로 WSL2 형태로 설치되도록 설정하는 명령어.
 ```powershell
+wsl --update
+
 wsl --set-default-version 2
 ```
 
 WSL은 리눅스를 “번역해서” 실행하고, WSL2는 실제 리눅스 커널을 사용해 “그대로” 실행한다.
-
 
 ## 1-5. WSL Ubuntu 24.04 설치
 | 항목               | 의미                            |
@@ -64,6 +65,37 @@ WSL은 리눅스를 “번역해서” 실행하고, WSL2는 실제 리눅스 �
 ```powershell
 wsl --install -d Ubuntu-24.04
 ```
+
+## ( 선택 ) BIOS 설정
+
+### BIOS 설정 들어가려면 아래 키를 PC 재부팅 직후 연타
+- DEL / F2 (가장 흔함)
+- F10 / F12 (제조사별)
+
+### BIOS 메뉴 찾기 (제조사마다 다르게 보임)
+
+- Advanced → CPU Configuration
+- Advanced → Advanced BIOS Features
+- Advanced → Northbridge / Processor
+- OC / Tweaker → CPU Features
+
+### 아래 가상화 옵션을 Enabled 로 변경 (제조사마다 다르게 보임)
+
+| CPU       | 옵션 이름                                      |
+| --------- | ------------------------------------------ |
+| **Intel** | **Intel Virtualization Technology (VT-x)** |
+| **AMD**   | **SVM Mode** 또는 **AMD-V**                  |
+
+### 재부팅 후 윈도우에서 바로 확인
+```Powershell
+wsl --status
+```
+
+## ( 선택 ) WSL2 리눅스 커널 업데이트 MSI 설치 파일을 직접 다운로드
+
+WSL2 Linux Kernel Update Package (x64) - 
+`https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi`
+
 --- 
 
 # 2. Ubuntu 24.04 소개 및 초기 설정
