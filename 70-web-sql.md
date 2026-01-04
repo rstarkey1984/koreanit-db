@@ -164,7 +164,7 @@ spring init \
   --artifactId=demo \
   --name=demo \
   --package-name=com.example.demo \
-  --dependencies=webmvc,jdbc \
+  --dependencies=web,jdbc \
   demo
 ```
 spring init 옵션 정리 표
@@ -253,28 +253,48 @@ runtimeOnly 'com.mysql:mysql-connector-j' // MySQL JDBC driver
 ./gradlew clean bootRun
 ```
 
-## (선택) 가상호스트
-~/projects/web-docker/nginx/api.localhost.conf 파일 생성
+## NGINX 리버스 프록시 설정
+> 리버스 프록시는 클라이언트 요청을 대신 받아 내부 서버로 전달하고, 응답을 다시 돌려주는 중간 서버 역할이다.
+
+~/projects/web-docker/nginx/test.localhost.conf 파일 VSCode로 열기
 ```
-code ~/projects/web-docker/nginx/api.localhost.conf
+code ~/projects/web-docker/nginx/test.localhost.conf
 ```
 
-api.localhost.conf 파일 수정:
+test.localhost.conf 파일 수정:
 ```
 server {
     listen 80;
-    server_name api.localhost;
+    server_name test.localhost;
+
+    # 웹에서 직접 접근 가능한 루트는 public
+    root /var/www/test.localhost/public;
+    index index.html index.php;
 
     location / {
+        try_files $uri $uri/ /index.html?$query_string;
+    }
+
+    # /api/로 시작하는 요청은 백엔드 API 서버로 프록시 패스
+    location /api/ {
         proxy_pass http://host.docker.internal:9091;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    # PHP 요청을 PHP-FPM으로 전달
+    location ~ \.php$ {
+        include fastcgi_params;
+        
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+
+        fastcgi_pass php:9000;   # compose의 서비스명 php로 연결
+    }
 }
 ```
-docker-compose.yml 파일 Nginx 볼륨연결 및 hosts 부분 추가:
+docker-compose.yml 파일 hosts 부분 추가:
 ```
 name: web-docker
 
@@ -288,7 +308,6 @@ services:
     volumes:
       - ./var/www/test.localhost:/var/www/test.localhost:ro
       - ./nginx/test.localhost.conf:/etc/nginx/conf.d/test.localhost.conf:ro
-      - ./nginx/api.localhost.conf:/etc/nginx/conf.d/api.localhost.conf:ro
     depends_on:
       - php
     extra_hosts:
@@ -333,7 +352,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HelloController {
 
-  @GetMapping("/hello")
+  @GetMapping("/api/hello")
   public String hello() {
 
     // bcrypt 해시 생성 (salt 포함)
@@ -408,6 +427,7 @@ import org.springframework.web.bind.annotation.RestController;
 //   HTTP 응답 바디로 바로 나가도록 설정
 // --------------------------------------------------
 @RestController
+@RequestMapping("/api") // 모든 엔드포인트에 /api prefix 부여
 public class ApiController {
 
   // --------------------------------------------------
