@@ -232,23 +232,27 @@ runtimeOnly 'com.mysql:mysql-connector-j' // MySQL JDBC driver
 ```
 
 ## 4-4. 서버 실행
-
+> `gradlew` 는 Gradle이 설치되어 있지 않아도, 프로젝트에 포함된 Gradle로 빌드하게 해주는 실행 스크립트
 ```bash
 ./gradlew bootRun
 ```
-의미:
+> bootRun 은 Spring Boot 애플리케이션을 “개발용 실행 상태”로 바로 띄우는 Gradle 작업(Task)
 
-- Gradle이 먼저 실행됨
+## bootRun이 실제로 하는 일
 
-- 필요한 라이브러리 다운로드
+### bootRun을 실행하면 내부적으로 하는 동작
 
-- 프로젝트 빌드
+- Java 컴파일
 
-- Java 실행
+- 클래스패스 구성
 
-- main() 호출
+- application.yml / application.properties 로드
 
-전부 새로 빌드하고 싶을 때:
+- 내장 톰캣(Tomcat) 실행
+
+- main() 메서드 실행
+
+### build/ 디렉토리 전부 삭제 후 bootRun 실행:
 ```bash
 ./gradlew clean bootRun
 ```
@@ -381,9 +385,9 @@ public class HelloController {
 
 ## 5-4. 브라우저에서 접속:
 
-`http://localhost:9091/hello`
+`http://localhost:9091/api/hello`
 
-`http://api.localhost/hello`
+`http://test.localhost/api/hello`
 
 
 ---
@@ -538,7 +542,7 @@ HTTP 요청 수신 / 응답 전송
 
 ---
 
-## 7-3. 게시글 조회 ( SELECT )
+## 7-1. 게시글 조회 ( SELECT )
 
 조회할 SQL
 ```sql
@@ -629,10 +633,10 @@ public List<Map<String, Object>> postList() throws Exception {
 
 (선택) curl로 POST 요청 테스트
 ```bash
-curl http://localhost:9091/posts
+curl http://localhost:9091/api/posts
 ```
 ```bash
-curl http://api.localhost/posts
+curl http://test.localhost/api/hello
 ```
 
 ## VSCode 에서 REST Client 확장 설치
@@ -644,9 +648,8 @@ curl http://api.localhost/posts
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 게시글 조회
-GET http://127.0.0.1/posts
-Host: api.localhost
-Content-Type: application/json
+GET http://127.0.0.1/api/posts
+Host: test.localhost
 ```
 
 ---
@@ -676,7 +679,7 @@ INSERT 실행 (users)
 ```
 
 ## 요청/응답 형태
-POST api.localhost/signup
+### POST test.localhost/api/signup
 
 요청(JSON)
 ```json
@@ -813,8 +816,8 @@ public Map<String, Object> signup(@RequestBody Map<String, Object> body) throws 
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 회원가입
-POST http://127.0.0.1/signup
-Host: api.localhost
+POST http://127.0.0.1/api/signup
+Host: test.localhost
 Content-Type: application/json
 
 {
@@ -833,7 +836,7 @@ Content-Type: application/json
 
 ### 로그인 요청/응답 형태
 
-`api.localhost/login` POST 요청(JSON):
+### POST test.localhost/api/login
 ```json
 {
   "username": "test",
@@ -944,8 +947,8 @@ public Map<String, Object> logout(HttpSession session) {
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 로그인
-POST http://127.0.0.1/login
-Host: api.localhost
+POST http://127.0.0.1/api/login
+Host: test.localhost
 Content-Type: application/json
 
 {
@@ -954,8 +957,8 @@ Content-Type: application/json
 }
 
 ### 로그아웃
-POST http://127.0.0.1/logout
-Host: api.localhost
+POST http://127.0.0.1/api/logout
+Host: test.localhost
 Content-Type: application/json
 ```
 
@@ -1044,12 +1047,12 @@ public Map<String, Object> createPost(@RequestBody Map<String, Object> body, Htt
 
 ```
 ### 게시글 등록
-POST http://127.0.0.1/posts
-Host: api.localhost
+POST http://127.0.0.1/api/posts
+Host: test.localhost
 Content-Type: application/json
 
 {
-    "title": "제목1",
+    "title": "제목",
     "content": "내용"
 }
 ```
@@ -1158,8 +1161,8 @@ public Map<String, Object> deletePost(@PathVariable("id") int id, HttpSession se
 
 ```
 ### 게시글 삭제
-DELETE http://127.0.0.1/posts/1
-Host: api.localhost
+DELETE http://127.0.0.1/api/posts/1
+Host: test.localhost
 Content-Type: application/json
 ```
 
@@ -1197,7 +1200,7 @@ MySQL
 - PUT /posts/10 → id=10 게시글 수정
 
 ## 요청/응답 형태
-PUT api.localhost/posts/{id}
+### PUT test.localhost/api/posts/{id}
 
 요청(JSON)
 ```json
@@ -1352,8 +1355,8 @@ public Map<String, Object> updatePost(
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 게시글 수정
-PUT http://127.0.0.1/posts/1
-Host: api.localhost
+PUT http://127.0.0.1/api/posts/1
+Host: test.localhost
 Content-Type: application/json
 
 {

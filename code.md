@@ -1,12 +1,31 @@
-# 준비
+# 세션(HttpSession)을 Redis로 저장하기
 
-### posts 테이블에 comments_cnt 컬럼 있는지 확인
+## 1. Redis 실행 (Docker)
+```
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+```
+
+## 2. Spring Session + Redis 의존성 추가
+
+## 3. spring.session.store-type=redis 설정
+
+# MySQL 준비
+
+### posts 테이블에 comments_cnt 컬럼 없으면 생성
+
+```sql
+ALTER TABLE `testdb`.`posts` 
+ADD COLUMN `comments_cnt` INT NOT NULL DEFAULT 0 AFTER `updated_at`;
+```
 
 
 ---
-
-
-
 
 # 게시판 API 엔드포인트 정리
 
@@ -39,18 +58,14 @@
 
 # ApiController.java
 ```java
-// 이 클래스가 속한 패키지 경로
-// 보통 controller 패키지에는 HTTP 요청을 처리하는 클래스들이 들어간다
 package com.example.demo.controller;
 
-// JDBC 관련 클래스들
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,35 +76,36 @@ import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
-// 스프링 웹
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// 세션/요청
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
-// 비밀번호 해시/검증
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-// --------------------------------------------------
-// @RestController
-// - return 값이 View(html)가 아니라 HTTP 응답 바디(JSON)로 나감
-// --------------------------------------------------
+/**
+ * 게시판 API 컨트롤러 (JDBC + Session 기반)
+ *
+ * - @RestController: return 값이 View(html)가 아니라 응답 바디(JSON)로 내려감
+ * - DB 접근은 DataSource -> Connection -> PreparedStatement 순서로 수행
+ * - 로그인 상태는 HttpSession("user_id")로 관리
+ */
 @RestController
 @RequestMapping("/api") // 모든 엔드포인트에 /api prefix 부여
 public class ApiController {
 
   private final DataSource dataSource;
 
-  // 비밀번호 해시/검증 도구
+  // 비밀번호 해시/검증 도구(BCrypt)
   private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
   public ApiController(DataSource dataSource) {
@@ -98,6 +114,7 @@ public class ApiController {
 
   // --------------------------------------------------
   // 공통 유틸: 응답 포맷
+  // - 모든 API는 { ok: boolean, data?: any, message?: string } 형태로 통일
   // --------------------------------------------------
   private Map<String, Object> ok(Object data) {
     Map<String, Object> r = new HashMap<>();
@@ -115,17 +132,22 @@ public class ApiController {
 
   // --------------------------------------------------
   // 공통 유틸: 로그인 확인
+  // - 세션에 user_id가 있으면 로그인 상태로 간주
   // --------------------------------------------------
   private Integer requireLogin(HttpSession session) {
     Object userIdObj = session.getAttribute("user_id");
-    if (userIdObj == null) return null;
+    if (userIdObj == null)
+      return null;
+    // login()에서 int를 넣었으므로 Integer로 들어옴(일반적)
     return (Integer) userIdObj;
   }
 
   // --------------------------------------------------
-  // 공통 유틸: viewer_key 생성(비로그인 사용자)
-  // - user_id 있으면 u:{id}
-  // - 없으면 IP + UA 기반으로 해시해서 g:{hash}
+  // 공통 유틸: viewer_key 생성(조회수 중복 방지용)
+  // - 로그인: "u:{id}"
+  // - 비로그인: ip + ua를 sha256 해시하여 "g:{hash}" 형태로 고정값 생성
+  //
+  // viewer_key를 클라이언트가 직접 보내는 것도 허용(실습/테스트 편의)
   // --------------------------------------------------
   private String buildViewerKey(HttpSession session, HttpServletRequest req, String viewerKeyParam) {
     // 1) 클라이언트가 viewer_key를 직접 보내면 우선 사용
@@ -135,15 +157,18 @@ public class ApiController {
 
     // 2) 로그인 사용자면 user_id 기반으로 고정
     Integer uid = requireLogin(session);
-    if (uid != null) return "u:" + uid;
+    if (uid != null)
+      return "u:" + uid;
 
     // 3) 비로그인이면 ip + user-agent 해시
     String ip = req.getRemoteAddr();
     String ua = req.getHeader("User-Agent");
-    if (ua == null) ua = "";
+    if (ua == null)
+      ua = "";
     String raw = ip + "|" + ua;
 
-    return "g:" + sha256Hex(raw).substring(0, 32); // 길이 제한 고려(100 이내)
+    // 길이 제한 고려: post_view_logs.viewer_key가 100 이내라면 32글자 정도로 충분
+    return "g:" + sha256Hex(raw).substring(0, 32);
   }
 
   private String sha256Hex(String s) {
@@ -151,16 +176,18 @@ public class ApiController {
       MessageDigest md = MessageDigest.getInstance("SHA-256");
       byte[] dig = md.digest(s.getBytes(StandardCharsets.UTF_8));
       StringBuilder sb = new StringBuilder();
-      for (byte b : dig) sb.append(String.format("%02x", b));
+      for (byte b : dig)
+        sb.append(String.format("%02x", b));
       return sb.toString();
     } catch (Exception e) {
-      // 실패 시 fallback
+      // 해시 실패 시 fallback(실습 안전망)
       return Integer.toHexString(s.hashCode());
     }
   }
 
   // --------------------------------------------------
   // 디버그: DB 연결 확인
+  // - 실습 환경에서 "DB 연결이 되나?" 를 빠르게 확인하는 용도
   // --------------------------------------------------
   @GetMapping("/db-debug")
   public List<Map<String, Object>> dbDebug() throws Exception {
@@ -193,18 +220,26 @@ public class ApiController {
   // 인증/세션
   // --------------------------------------------------
 
+  /**
+   * POST /signup
+   * - users 테이블에만 INSERT (user_profiles는 생성하지 않음)
+   * - username 중복 체크
+   * - password는 BCrypt로 해시 저장
+   */
   @PostMapping("/signup")
   public Map<String, Object> signup(@RequestBody Map<String, Object> body) throws Exception {
     String username = (String) body.get("username");
     String password = (String) body.get("password");
     String nickname = (String) body.get("nickname");
 
+    // 기본 유효성 검사(실습용 최소)
     if (username == null || username.isBlank()
         || password == null || password.isBlank()
         || nickname == null || nickname.isBlank()) {
       return fail("입력값 오류");
     }
 
+    // 길이 제한(테이블 varchar 기준에 맞춰 조정 가능)
     if (username.length() > 50 || nickname.length() > 50 || password.length() > 100) {
       return fail("입력값 오류");
     }
@@ -227,24 +262,27 @@ public class ApiController {
       try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
         ps.setString(1, username);
         try (ResultSet rs = ps.executeQuery()) {
-          if (rs.next()) return fail("이미 존재하는 아이디");
+          if (rs.next())
+            return fail("이미 존재하는 아이디");
         }
       }
 
-      // 비밀번호 해시 (BCryptPasswordEncoder)
+      // 비밀번호 해시
       String hash = passwordEncoder.encode(password);
 
-      // users INSERT
+      // users INSERT (생성된 PK 반환)
       try (PreparedStatement ps = conn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
         ps.setString(1, username);
         ps.setString(2, hash);
         ps.setString(3, nickname);
 
         int affected = ps.executeUpdate();
-        if (affected != 1) return fail("입력 실패");
+        if (affected != 1)
+          return fail("입력 실패");
 
         try (ResultSet keys = ps.getGeneratedKeys()) {
-          if (!keys.next()) return fail("생성된 user_id 키 없음");
+          if (!keys.next())
+            return fail("생성된 user_id 키 없음");
           int userId = keys.getInt(1);
 
           Map<String, Object> data = new HashMap<>();
@@ -255,6 +293,11 @@ public class ApiController {
     }
   }
 
+  /**
+   * POST /login
+   * - username 조회 -> BCrypt 검증
+   * - 성공 시 session에 user_id 저장
+   */
   @PostMapping("/login")
   public Map<String, Object> login(@RequestBody Map<String, Object> body, HttpSession session) throws Exception {
     String username = (String) body.get("username");
@@ -277,14 +320,17 @@ public class ApiController {
       ps.setString(1, username);
 
       try (ResultSet rs = ps.executeQuery()) {
-        if (!rs.next()) return fail("아이디 없음");
+        if (!rs.next())
+          return fail("아이디 없음");
 
         int userId = rs.getInt("id");
         String hash = rs.getString("password");
 
         boolean ok = passwordEncoder.matches(password, hash);
-        if (!ok) return fail("비밀번호 오류");
+        if (!ok)
+          return fail("비밀번호 오류");
 
+        // 세션에 로그인 정보 저장
         session.setAttribute("user_id", userId);
 
         Map<String, Object> data = new HashMap<>();
@@ -294,16 +340,25 @@ public class ApiController {
     }
   }
 
+  /**
+   * POST /logout
+   * - 세션 무효화
+   */
   @PostMapping("/logout")
   public Map<String, Object> logout(HttpSession session) {
     session.invalidate();
     return ok(Map.of());
   }
 
+  /**
+   * GET /me
+   * - 로그인 상태 확인(세션 기반)
+   */
   @GetMapping("/me")
   public Map<String, Object> me(HttpSession session) {
     Integer userId = requireLogin(session);
-    if (userId == null) return ok(Map.of("logged_in", false));
+    if (userId == null)
+      return ok(Map.of("logged_in", false));
 
     Map<String, Object> data = new HashMap<>();
     data.put("logged_in", true);
@@ -320,7 +375,8 @@ public class ApiController {
   @GetMapping("/me/profile")
   public Map<String, Object> myProfile(HttpSession session) throws Exception {
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     String sql = """
         SELECT u.id, u.username, u.nickname, u.email, u.created_at,
@@ -337,21 +393,22 @@ public class ApiController {
       ps.setInt(1, userId);
 
       try (ResultSet rs = ps.executeQuery()) {
-        if (!rs.next()) return fail("사용자 없음");
+        if (!rs.next())
+          return fail("사용자 없음");
 
         Map<String, Object> data = new HashMap<>();
         data.put("id", rs.getInt("id"));
         data.put("username", rs.getString("username"));
         data.put("nickname", rs.getString("nickname"));
         data.put("email", rs.getString("email"));
-        data.put("created_at", rs.getTimestamp("created_at"));
+        data.put("created_at", rs.getString("created_at"));
 
-        // profile (없을 수 있음)
+        // profile 컬럼들(LEFT JOIN이라 null일 수 있음)
         data.put("bio", rs.getString("bio"));
         data.put("phone", rs.getString("phone"));
-        data.put("birth_date", rs.getDate("birth_date"));
+        data.put("birth_date", rs.getString("birth_date"));
         data.put("profile_image_url", rs.getString("profile_image_url"));
-        data.put("profile_updated_at", rs.getTimestamp("updated_at"));
+        data.put("profile_updated_at", rs.getString("updated_at"));
 
         return ok(data);
       }
@@ -359,23 +416,40 @@ public class ApiController {
   }
 
   @PutMapping("/me/profile")
-  public Map<String, Object> upsertMyProfile(@RequestBody Map<String, Object> body, HttpSession session) throws Exception {
+  public Map<String, Object> upsertMyProfile(@RequestBody Map<String, Object> body, HttpSession session)
+      throws Exception {
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     String bio = (String) body.get("bio");
     String phone = (String) body.get("phone");
-    String birthDate = (String) body.get("birth_date"); // "YYYY-MM-DD" 문자열로 받는 방식
+    String birthDate = (String) body.get("birth_date"); // "YYYY-MM-DD"
     String profileImageUrl = (String) body.get("profile_image_url");
 
-    // 최소 길이 검증(원하면 더 강화 가능)
-    if (bio != null && bio.length() > 300) return fail("입력값 오류");
-    if (phone != null && phone.length() > 20) return fail("입력값 오류");
-    if (profileImageUrl != null && profileImageUrl.length() > 500) return fail("입력값 오류");
+    // 공백 문자열은 null로 정리(특히 DATE)
+    if (birthDate != null && birthDate.isBlank())
+      birthDate = null;
 
-    // UPDATE 먼저
-    // 주의: MySQL은 값이 동일하면 affectedRows=0이 될 수 있음
-    // 그래서 updated_at을 CURRENT_TIMESTAMP로 강제로 갱신해서 "존재하면 1"이 되도록 처리
+    // 간단한 형식 검증(원하면 더 강화 가능)
+    // YYYY-MM-DD 형태가 아니면 에러 처리
+    if (birthDate != null && !birthDate.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+      return fail("입력값 오류");
+    }
+
+    // 길이 검증(테이블 스펙에 맞춰 조절)
+    if (bio != null && bio.length() > 300)
+      return fail("입력값 오류");
+    if (phone != null && phone.length() > 20)
+      return fail("입력값 오류");
+    if (profileImageUrl != null && profileImageUrl.length() > 500)
+      return fail("입력값 오류");
+
+    /**
+     * UPDATE 먼저 실행
+     * - MySQL은 "값이 동일"하면 updatedRows가 0이 될 수 있음
+     * - 그래서 updated_at을 CURRENT_TIMESTAMP로 강제로 갱신해 "존재하면 1"에 가깝게 만듦
+     */
     String updateSql = """
         UPDATE user_profiles
         SET bio = ?,
@@ -399,15 +473,14 @@ public class ApiController {
         try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
           ps.setString(1, bio);
           ps.setString(2, phone);
-          ps.setString(3, birthDate); // DATE 컬럼이므로 "YYYY-MM-DD" 문자열 가능
+          ps.setString(3, birthDate); // DATE 컬럼에 "YYYY-MM-DD" 문자열 가능
           ps.setString(4, profileImageUrl);
           ps.setInt(5, userId);
-
           updated = ps.executeUpdate();
         }
 
+        // 존재하지 않아서 업데이트가 0건이면 INSERT
         if (updated == 0) {
-          // 존재하지 않는 경우에만 INSERT
           try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
             ps.setInt(1, userId);
             ps.setString(2, bio);
@@ -419,11 +492,7 @@ public class ApiController {
         }
 
         conn.commit();
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("user_id", userId);
-        data.put("upserted", true);
-        return ok(data);
+        return ok(Map.of("user_id", userId, "upserted", true));
 
       } catch (Exception e) {
         conn.rollback();
@@ -434,6 +503,10 @@ public class ApiController {
     }
   }
 
+  /**
+   * GET /users/{userId}
+   * - 작성자 정보 표시에 사용
+   */
   @GetMapping("/users/{userId}")
   public Map<String, Object> userProfile(@PathVariable("userId") int userId) throws Exception {
     String sql = """
@@ -451,18 +524,19 @@ public class ApiController {
       ps.setInt(1, userId);
 
       try (ResultSet rs = ps.executeQuery()) {
-        if (!rs.next()) return fail("사용자 없음");
+        if (!rs.next())
+          return fail("사용자 없음");
 
         Map<String, Object> data = new HashMap<>();
         data.put("id", rs.getInt("id"));
         data.put("username", rs.getString("username"));
         data.put("nickname", rs.getString("nickname"));
         data.put("email", rs.getString("email"));
-        data.put("created_at", rs.getTimestamp("created_at"));
+        data.put("created_at", rs.getString("created_at"));
 
         data.put("bio", rs.getString("bio"));
         data.put("phone", rs.getString("phone"));
-        data.put("birth_date", rs.getDate("birth_date"));
+        data.put("birth_date", rs.getString("birth_date"));
         data.put("profile_image_url", rs.getString("profile_image_url"));
 
         return ok(data);
@@ -474,7 +548,11 @@ public class ApiController {
   // 게시글
   // --------------------------------------------------
 
-  // 게시글 목록(기본 + 선택: page/pageSize/search)
+  /**
+   * GET /posts
+   * - page/pageSize 기본 페이징
+   * - type(title|content|both) + keyword로 검색 지원
+   */
   @GetMapping("/posts")
   public Map<String, Object> postList(
       @RequestParam(value = "page", required = false, defaultValue = "1") int page,
@@ -482,21 +560,26 @@ public class ApiController {
       @RequestParam(value = "type", required = false) String type,
       @RequestParam(value = "keyword", required = false) String keyword) throws Exception {
 
-    if (page < 1) page = 1;
-    if (pageSize < 1) pageSize = 20;
-    if (pageSize > 50) pageSize = 50;
+    if (page < 1)
+      page = 1;
+    if (pageSize < 1)
+      pageSize = 20;
+    if (pageSize > 50)
+      pageSize = 50;
 
     int offset = (page - 1) * pageSize;
 
-    // 검색 조건
-    String where = "";
     boolean hasSearch = (keyword != null && !keyword.isBlank());
 
-    if (hasSearch) {
-      // type은 title / content / both 정도만 허용
-      if (type == null || type.isBlank()) type = "both";
-      type = type.trim();
+    // type 허용 범위 제한(그 외는 both로 처리)
+    if (type == null || type.isBlank())
+      type = "both";
+    type = type.trim();
+    if (!("title".equals(type) || "content".equals(type) || "both".equals(type)))
+      type = "both";
 
+    String where = "";
+    if (hasSearch) {
       if ("title".equals(type)) {
         where = "WHERE title LIKE ?";
       } else if ("content".equals(type)) {
@@ -506,51 +589,26 @@ public class ApiController {
       }
     }
 
-    String listSql;
-    if (!hasSearch) {
-      listSql = """
-          SELECT id, user_id, title, content, view_count, created_at, comments_cnt
-          FROM posts
-          ORDER BY id DESC
-          LIMIT ? OFFSET ?
-          """;
-    } else {
-      if ("both".equals(type)) {
-        listSql = """
-            SELECT id, user_id, title, content, view_count, created_at, comments_cnt
-            FROM posts
-            %s
-            ORDER BY id DESC
-            LIMIT ? OFFSET ?
-            """.formatted(where);
-      } else {
-        listSql = """
-            SELECT id, user_id, title, content, view_count, created_at, comments_cnt
-            FROM posts
-            %s
-            ORDER BY id DESC
-            LIMIT ? OFFSET ?
-            """.formatted(where);
-      }
-    }
+    String listSql = """
+        SELECT id, user_id, title, content, view_count, created_at, comments_cnt
+        FROM posts
+        %s
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+        """.formatted(where);
 
-    String countSql;
-    if (!hasSearch) {
-      countSql = "SELECT COUNT(*) AS cnt FROM posts";
-    } else {
-      countSql = ("both".equals(type))
-          ? ("SELECT COUNT(*) AS cnt FROM posts " + where)
-          : ("SELECT COUNT(*) AS cnt FROM posts " + where);
-    }
+    String countSql = hasSearch
+        ? ("SELECT COUNT(*) AS cnt FROM posts " + where)
+        : "SELECT COUNT(*) AS cnt FROM posts";
 
     List<Map<String, Object>> items = new ArrayList<>();
     long total = 0;
 
     try (Connection conn = dataSource.getConnection()) {
 
-      // total count
+      // 1) total count 조회
       try (PreparedStatement ps = conn.prepareStatement(countSql)) {
-        if (hasSearch) {
+        if (hasSearch && keyword != null && !keyword.isBlank()) {
           String like = "%" + keyword.trim() + "%";
           if ("both".equals(type)) {
             ps.setString(1, like);
@@ -560,14 +618,16 @@ public class ApiController {
           }
         }
         try (ResultSet rs = ps.executeQuery()) {
-          if (rs.next()) total = rs.getLong("cnt");
+          if (rs.next())
+            total = rs.getLong("cnt");
         }
       }
 
-      // list
+      // 2) 목록 조회
       try (PreparedStatement ps = conn.prepareStatement(listSql)) {
         int idx = 1;
-        if (hasSearch) {
+
+        if (hasSearch && keyword != null && !keyword.isBlank()) {
           String like = "%" + keyword.trim() + "%";
           if ("both".equals(type)) {
             ps.setString(idx++, like);
@@ -576,6 +636,7 @@ public class ApiController {
             ps.setString(idx++, like);
           }
         }
+
         ps.setInt(idx++, pageSize);
         ps.setInt(idx++, offset);
 
@@ -588,23 +649,25 @@ public class ApiController {
             row.put("content", rs.getString("content"));
             row.put("view_count", rs.getInt("view_count"));
             row.put("comments_cnt", rs.getInt("comments_cnt"));
-            row.put("created_at", rs.getTimestamp("created_at"));
+            row.put("created_at", rs.getString("created_at"));
             items.add(row);
           }
         }
       }
     }
 
-    Map<String, Object> data = new HashMap<>();
-    data.put("page", page);
-    data.put("pageSize", pageSize);
-    data.put("total", total);
-    data.put("items", items);
-
-    return ok(data);
+    return ok(Map.of(
+        "page", page,
+        "pageSize", pageSize,
+        "total", total,
+        "items", items));
   }
 
-  // 게시글 상세 + 조회수 중복 방지 증가
+  /**
+   * GET /posts/{id}
+   * - 조회수 증가(중복 방지): post_view_logs에 (post_id, viewer_key) UNIQUE
+   * - insert 성공했을 때만 posts.view_count +1
+   */
   @GetMapping("/posts/{id}")
   public Map<String, Object> postDetail(
       @PathVariable("id") int id,
@@ -636,15 +699,16 @@ public class ApiController {
       conn.setAutoCommit(false);
 
       try {
-        // 1) 로그 INSERT 시도
+        // 1) 조회 로그 INSERT 시도
         boolean inserted = false;
         try (PreparedStatement ps = conn.prepareStatement(insertLogSql)) {
           ps.setInt(1, id);
           ps.setString(2, viewerKey);
           ps.executeUpdate();
           inserted = true;
-        } catch (SQLIntegrityConstraintViolationException dup) {
-          // (post_id, viewer_key) UNIQUE 충돌이면 조회수 증가 안 함
+        } catch (SQLIntegrityConstraintViolationException dupOrFk) {
+          // - UNIQUE 충돌(이미 본 사용자) -> inserted=false
+          // - FK 오류(게시글 없음) -> 아래 select에서 fail 처리되도록 유도
           inserted = false;
         }
 
@@ -657,7 +721,6 @@ public class ApiController {
         }
 
         // 3) 게시글 조회
-        Map<String, Object> post = null;
         try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
           ps.setInt(1, id);
           try (ResultSet rs = ps.executeQuery()) {
@@ -665,20 +728,23 @@ public class ApiController {
               conn.rollback();
               return fail("게시글 없음");
             }
-            post = new HashMap<>();
+
+            Map<String, Object> post = new HashMap<>();
             post.put("id", rs.getInt("id"));
             post.put("user_id", rs.getInt("user_id"));
             post.put("title", rs.getString("title"));
             post.put("content", rs.getString("content"));
             post.put("view_count", rs.getInt("view_count"));
             post.put("comments_cnt", rs.getInt("comments_cnt"));
-            post.put("created_at", rs.getTimestamp("created_at"));
+            post.put("created_at", rs.getString("created_at"));
+
+            // 디버그/테스트용으로 viewer_key도 같이 내려줌
             post.put("viewer_key", viewerKey);
+
+            conn.commit();
+            return ok(post);
           }
         }
-
-        conn.commit();
-        return ok(post);
 
       } catch (Exception e) {
         conn.rollback();
@@ -689,18 +755,26 @@ public class ApiController {
     }
   }
 
+  /**
+   * POST /posts
+   * - 로그인 필요
+   * - posts INSERT 후 생성된 post_id 반환
+   */
   @PostMapping("/posts")
   public Map<String, Object> createPost(@RequestBody Map<String, Object> body, HttpSession session) throws Exception {
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     String title = (String) body.get("title");
     String content = (String) body.get("content");
 
-    if (title == null || title.isBlank() || content == null || content.isBlank()) return fail("입력값 오류");
+    if (title == null || title.isBlank() || content == null || content.isBlank())
+      return fail("입력값 오류");
 
-    // posts.title은 varchar(45)
-    if (title.length() > 45) return fail("입력값 오류");
+    // posts.title이 varchar(45)라면 그에 맞게 제한
+    if (title.length() > 45)
+      return fail("입력값 오류");
 
     String sql = """
         INSERT INTO posts (user_id, title, content)
@@ -715,19 +789,23 @@ public class ApiController {
       ps.setString(3, content);
 
       int affected = ps.executeUpdate();
-      if (affected != 1) return fail("입력 실패");
+      if (affected != 1)
+        return fail("입력 실패");
 
       try (ResultSet keys = ps.getGeneratedKeys()) {
-        if (!keys.next()) return fail("생성된 post_id 키 없음");
+        if (!keys.next())
+          return fail("생성된 post_id 키 없음");
         int postId = keys.getInt(1);
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("post_id", postId);
-        return ok(data);
+        return ok(Map.of("post_id", postId));
       }
     }
   }
 
+  /**
+   * PUT /posts/{id}
+   * - 로그인 필요
+   * - 작성자 본인만 수정 가능
+   */
   @PutMapping("/posts/{id}")
   public Map<String, Object> updatePost(
       @PathVariable("id") int id,
@@ -735,13 +813,16 @@ public class ApiController {
       HttpSession session) throws Exception {
 
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     String title = (String) body.get("title");
     String content = (String) body.get("content");
 
-    if (title == null || title.isBlank() || content == null || content.isBlank()) return fail("입력값 오류");
-    if (title.length() > 45) return fail("입력값 오류");
+    if (title == null || title.isBlank() || content == null || content.isBlank())
+      return fail("입력값 오류");
+    if (title.length() > 45)
+      return fail("입력값 오류");
 
     String ownerSql = """
         SELECT user_id
@@ -757,19 +838,21 @@ public class ApiController {
 
     try (Connection conn = dataSource.getConnection()) {
 
-      // 작성자 확인
+      // 1) 작성자 확인
       Integer ownerId = null;
       try (PreparedStatement ps = conn.prepareStatement(ownerSql)) {
         ps.setInt(1, id);
         try (ResultSet rs = ps.executeQuery()) {
-          if (!rs.next()) return fail("게시글 없음");
+          if (!rs.next())
+            return fail("게시글 없음");
           ownerId = rs.getInt("user_id");
         }
       }
 
-      if (ownerId == null || ownerId.intValue() != userId.intValue()) return fail("권한 없음");
+      if (ownerId == null || ownerId.intValue() != userId.intValue())
+        return fail("권한 없음");
 
-      // UPDATE
+      // 2) UPDATE
       try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
         ps.setString(1, title);
         ps.setString(2, content);
@@ -781,10 +864,17 @@ public class ApiController {
     }
   }
 
+  /**
+   * DELETE /posts/{id}
+   * - 로그인 필요
+   * - 작성자 본인만 삭제 가능
+   * - comments는 FK ON DELETE CASCADE로 자동 삭제
+   */
   @DeleteMapping("/posts/{id}")
   public Map<String, Object> deletePost(@PathVariable("id") int id, HttpSession session) throws Exception {
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     String ownerSql = """
         SELECT user_id
@@ -796,21 +886,24 @@ public class ApiController {
 
     try (Connection conn = dataSource.getConnection()) {
 
+      // 1) 작성자 확인
       Integer ownerId = null;
       try (PreparedStatement ps = conn.prepareStatement(ownerSql)) {
         ps.setInt(1, id);
         try (ResultSet rs = ps.executeQuery()) {
-          if (!rs.next()) return fail("게시글 없음");
+          if (!rs.next())
+            return fail("게시글 없음");
           ownerId = rs.getInt("user_id");
         }
       }
 
-      if (ownerId == null || ownerId.intValue() != userId.intValue()) return fail("권한 없음");
+      if (ownerId == null || ownerId.intValue() != userId.intValue())
+        return fail("권한 없음");
 
+      // 2) DELETE
       try (PreparedStatement ps = conn.prepareStatement(deleteSql)) {
         ps.setInt(1, id);
         int deleted = ps.executeUpdate();
-        // comments는 FK ON DELETE CASCADE로 자동 삭제
         return ok(Map.of("deleted", deleted));
       }
     }
@@ -820,6 +913,10 @@ public class ApiController {
   // 댓글
   // --------------------------------------------------
 
+  /**
+   * GET /posts/{postId}/comments
+   * - 해당 게시글의 댓글 목록
+   */
   @GetMapping("/posts/{postId}/comments")
   public Map<String, Object> commentList(@PathVariable("postId") int postId) throws Exception {
 
@@ -844,7 +941,7 @@ public class ApiController {
           row.put("post_id", rs.getInt("post_id"));
           row.put("user_id", rs.getInt("user_id"));
           row.put("comment", rs.getString("comment"));
-          row.put("created_at", rs.getTimestamp("created_at"));
+          row.put("created_at", rs.getString("created_at"));
           items.add(row);
         }
       }
@@ -853,6 +950,13 @@ public class ApiController {
     return ok(Map.of("items", items));
   }
 
+  /**
+   * POST /posts/{postId}/comments
+   * - 로그인 필요
+   * - comments INSERT
+   * - posts.comments_cnt +1
+   * - 트랜잭션으로 정합성 유지
+   */
   @PostMapping("/posts/{postId}/comments")
   public Map<String, Object> createComment(
       @PathVariable("postId") int postId,
@@ -860,11 +964,14 @@ public class ApiController {
       HttpSession session) throws Exception {
 
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     String comment = (String) body.get("comment");
-    if (comment == null || comment.isBlank()) return fail("입력값 오류");
-    if (comment.length() > 255) return fail("입력값 오류");
+    if (comment == null || comment.isBlank())
+      return fail("입력값 오류");
+    if (comment.length() > 255)
+      return fail("입력값 오류");
 
     String insertSql = """
         INSERT INTO comments (post_id, user_id, comment)
@@ -902,6 +1009,10 @@ public class ApiController {
             }
             commentId = keys.getInt(1);
           }
+        } catch (SQLIntegrityConstraintViolationException fk) {
+          // post_id가 없거나(user FK 등) 무결성 오류인 경우
+          conn.rollback();
+          return fail("게시글 없음");
         }
 
         // 2) posts.comments_cnt +1
@@ -922,6 +1033,11 @@ public class ApiController {
     }
   }
 
+  /**
+   * PUT /comments/{commentId}
+   * - 로그인 필요
+   * - 댓글 작성자만 수정 가능
+   */
   @PutMapping("/comments/{commentId}")
   public Map<String, Object> updateComment(
       @PathVariable("commentId") int commentId,
@@ -929,11 +1045,14 @@ public class ApiController {
       HttpSession session) throws Exception {
 
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     String comment = (String) body.get("comment");
-    if (comment == null || comment.isBlank()) return fail("입력값 오류");
-    if (comment.length() > 255) return fail("입력값 오류");
+    if (comment == null || comment.isBlank())
+      return fail("입력값 오류");
+    if (comment.length() > 255)
+      return fail("입력값 오류");
 
     String ownerSql = """
         SELECT user_id
@@ -949,17 +1068,21 @@ public class ApiController {
 
     try (Connection conn = dataSource.getConnection()) {
 
+      // 1) 작성자 확인
       Integer ownerId = null;
       try (PreparedStatement ps = conn.prepareStatement(ownerSql)) {
         ps.setInt(1, commentId);
         try (ResultSet rs = ps.executeQuery()) {
-          if (!rs.next()) return fail("댓글 없음");
+          if (!rs.next())
+            return fail("댓글 없음");
           ownerId = rs.getInt("user_id");
         }
       }
 
-      if (ownerId == null || ownerId.intValue() != userId.intValue()) return fail("권한 없음");
+      if (ownerId == null || ownerId.intValue() != userId.intValue())
+        return fail("권한 없음");
 
+      // 2) UPDATE
       try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
         ps.setString(1, comment);
         ps.setInt(2, commentId);
@@ -969,10 +1092,18 @@ public class ApiController {
     }
   }
 
+  /**
+   * DELETE /comments/{commentId}
+   * - 로그인 필요
+   * - 댓글 작성자만 삭제 가능
+   * - 삭제 후 posts.comments_cnt -1
+   */
   @DeleteMapping("/comments/{commentId}")
-  public Map<String, Object> deleteComment(@PathVariable("commentId") int commentId, HttpSession session) throws Exception {
+  public Map<String, Object> deleteComment(@PathVariable("commentId") int commentId, HttpSession session)
+      throws Exception {
     Integer userId = requireLogin(session);
-    if (userId == null) return fail("로그인 필요");
+    if (userId == null)
+      return fail("로그인 필요");
 
     // 삭제 시 post_id가 필요(댓글 수 -1)
     String selectSql = """
@@ -1050,17 +1181,26 @@ public class ApiController {
 # REST Client용 api-test.http
 
 ```
-@baseUrl = http://localhost:9091/api
+### ------------------------------------------------------------
+### (REST Client용) 127.0.0.1로 접속 + Host 헤더로 test.localhost 매칭
+### ------------------------------------------------------------
+
+@baseUrl = http://127.0.0.1:9091/api
+@vhost = test.localhost
+
 @username = user01
 @password = pass1234!
 @nickname = 닉네임01
 
+
 ### 0) DB 연결 테스트
 GET {{baseUrl}}/db-debug
+Host: {{vhost}}
 
 
 ### 1) 회원가입
 POST {{baseUrl}}/signup
+Host: {{vhost}}
 Content-Type: application/json
 
 {
@@ -1075,6 +1215,7 @@ Content-Type: application/json
 # settings.json에 아래 옵션 켜면 이후 요청에 JSESSIONID가 자동 포함됩니다.
 # "rest-client.rememberCookiesForSubsequentRequests": true
 POST {{baseUrl}}/login
+Host: {{vhost}}
 Content-Type: application/json
 
 {
@@ -1085,14 +1226,17 @@ Content-Type: application/json
 
 ### 3) 로그인 상태 확인
 GET {{baseUrl}}/me
+Host: {{vhost}}
 
 
 ### 4) 내 프로필 조회(LEFT JOIN)
 GET {{baseUrl}}/me/profile
+Host: {{vhost}}
 
 
 ### 5) 내 프로필 UPSERT (UPDATE 먼저 -> 없으면 INSERT)
 PUT {{baseUrl}}/me/profile
+Host: {{vhost}}
 Content-Type: application/json
 
 {
@@ -1105,27 +1249,33 @@ Content-Type: application/json
 
 ### 6) 내 프로필 재조회
 GET {{baseUrl}}/me/profile
+Host: {{vhost}}
 
 
 ### 7) 다른 사용자 프로필 조회(예: 1번 사용자)
 GET {{baseUrl}}/users/1
+Host: {{vhost}}
 
 
 ### 8) 게시글 목록(기본)
 GET {{baseUrl}}/posts
+Host: {{vhost}}
 
 
 ### 9) 게시글 목록(페이징)
 GET {{baseUrl}}/posts?page=1000&pageSize=5
+Host: {{vhost}}
 
 
 ### 10) 게시글 목록(검색: both)
 GET {{baseUrl}}/posts?page=1&pageSize=5&type=both&keyword=테스트
+Host: {{vhost}}
 
 
 ### 11) 게시글 작성
 # 응답의 data.post_id 값을 아래에 복사해서 사용
 POST {{baseUrl}}/posts
+Host: {{vhost}}
 Content-Type: application/json
 
 {
@@ -1135,17 +1285,18 @@ Content-Type: application/json
 
 
 ### 12) 게시글 상세 조회(조회수 증가 + viewer_key 반환)
-# 아래 {postId}를 실제 숫자로 바꾸세요 (예: 1)
 GET {{baseUrl}}/posts/1
+Host: {{vhost}}
 
 
 ### 13) 게시글 상세 조회(같은 viewer_key로 조회수 중복 방지 확인)
-# 12번 응답의 data.viewer_key 값을 그대로 넣으면 view_count가 증가하지 않아야 정상
 GET {{baseUrl}}/posts/1?viewer_key=g:YOUR_VIEWER_KEY_HERE
+Host: {{vhost}}
 
 
 ### 14) 게시글 수정(작성자 본인만)
 PUT {{baseUrl}}/posts/1
+Host: {{vhost}}
 Content-Type: application/json
 
 {
@@ -1156,11 +1307,12 @@ Content-Type: application/json
 
 ### 15) 댓글 목록
 GET {{baseUrl}}/posts/1/comments
+Host: {{vhost}}
 
 
 ### 16) 댓글 작성(로그인 필요)
-# 응답의 data.comment_id 값을 아래에 복사해서 사용
 POST {{baseUrl}}/posts/1/comments
+Host: {{vhost}}
 Content-Type: application/json
 
 {
@@ -1169,8 +1321,8 @@ Content-Type: application/json
 
 
 ### 17) 댓글 수정(작성자 본인만)
-# 아래 {commentId}를 실제 값으로 바꾸세요
 PUT {{baseUrl}}/comments/500057
+Host: {{vhost}}
 Content-Type: application/json
 
 {
@@ -1180,18 +1332,22 @@ Content-Type: application/json
 
 ### 18) 댓글 삭제(작성자 본인만)
 DELETE {{baseUrl}}/comments/1
+Host: {{vhost}}
 
 
 ### 19) 게시글 삭제(작성자 본인만)
 DELETE {{baseUrl}}/posts/1
+Host: {{vhost}}
 
 
 ### 20) 로그아웃
 POST {{baseUrl}}/logout
+Host: {{vhost}}
 
 
 ### 21) 로그인 상태 확인(로그아웃 후)
 GET {{baseUrl}}/me
+Host: {{vhost}}
 ```
 
 ---
@@ -1820,7 +1976,7 @@ GET {{baseUrl}}/me
 
           profileForm: { bio: "", phone: "", birth_date: "", profile_image_url: "" },
 
-          postsQuery: { page: 1, pageSize: 20, type: "both", keyword: "" },
+          postsQuery: { page: 1, pageSize: 5, type: "both", keyword: "" },
           posts: { total: 0, items: [] },
 
           selectedPost: null,
@@ -2204,3 +2360,8 @@ GET {{baseUrl}}/me
 
 </html>
 ```
+
+---
+
+# (선택) 스프링부트 API 프로젝트 도커 컨테이너로 배포하기
+
