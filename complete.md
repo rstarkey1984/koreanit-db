@@ -2478,7 +2478,7 @@ public class DemoApplication {
 
 # (선택) 스프링부트 API 프로젝트 도커 컨테이너로 배포하기
 
-## .env 파일 만들기:
+## .env 파일 열기:
 ```
 code ~/projects/web-docker/.env
 ```
@@ -2507,17 +2507,14 @@ REDIS_HOST=host.docker.internal
 REDIS_PORT=6379
 ```
 
-### /etc/hosts 한줄 추가:
-```bash
-echo "127.0.0.1 host.docker.internal" | sudo tee -a /etc/hosts
-```
+## Docker Compose 에서 사용할 스프링부트 전용 설정 파일 생성:
 
-## Docker 전용 설정 파일 생성:
+### application-docker.yaml 파일 열기
 ```bash
 code ~/projects/web-docker/demo/src/main/resources/application-docker.yaml
 ```
 
-## application-docker.yaml 파일 수정
+### application-docker.yaml 파일 수정
 ```
 server:
   port: 9090
@@ -2529,8 +2526,8 @@ spring:
 
   datasource:
     url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: ${DB_USER}
+    password: ${DB_PASS}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   data:
@@ -2539,7 +2536,7 @@ spring:
       port: ${REDIS_PORT}
 ```
 
-## 1. 스프링부트 API 서버 이미지 만들기
+## 1. 스프링부트 API 서버 Docker 이미지 만들기
 
 ### Dockerfile 파일 열기
 ```bash
@@ -2595,7 +2592,7 @@ docker images | grep web-docker-api
 cd ~/projects/web-docker
 ```
 ```
-docker run --rm -p 9090:9090 --env SPRING_PROFILES_ACTIVE=docker --env-file .env --add-host host.docker.internal:host-gateway web-docker-api:1.0
+docker run --rm -p 9090:9090 --env-file .env --add-host host.docker.internal:host-gateway web-docker-api:1.0
 ```
 
 브라우저 확인
