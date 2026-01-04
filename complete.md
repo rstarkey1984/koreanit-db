@@ -2488,7 +2488,7 @@ code ~/projects/web-docker/.env
 # =========================
 # Spring Profile
 # =========================
-SPRING_PROFILES_ACTIVE=default
+SPRING_PROFILES_ACTIVE=docker
 
 # =========================
 # MySQL (host / WSL)
@@ -2496,8 +2496,9 @@ SPRING_PROFILES_ACTIVE=default
 DB_HOST=host.docker.internal
 DB_PORT=3308
 DB_NAME=testdb
-DB_USERNAME=test
-DB_PASSWORD=test123
+DB_USER=test
+DB_PASS=test123
+DB_CHARSET=utf8mb4
 
 # =========================
 # Redis (host / WSL)
