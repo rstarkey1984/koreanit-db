@@ -1605,7 +1605,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./var/www/test.localhost:/var/www/test.localhost:ro
+      - ./var/www:/var/www:ro
       - ./nginx:/etc/nginx/conf.d:ro
     depends_on:
       - php
@@ -1618,7 +1618,7 @@ services:
     container_name: web-php
     restart: unless-stopped
     volumes:
-      - ./var/www:/var/www:ro
+      - ./var/www/test.localhost:/var/www/test.localhost:ro
     env_file:
       - .env
     extra_hosts:
