@@ -2727,3 +2727,46 @@ code ~/projects/web-docker/var/www/www.localhost/public/index.html
 
 </html>
 ```
+
+
+# 서비스 흐름
+```
+(브라우저/클라이언트)
+        |
+        |  http://localhost:80
+        v
++---------------------------+
+|        HOST(PC/WSL)       |
+|  Port Publish: 80, 6379   |
++---------------------------+
+        | 80:80
+        v
++---------------------------+        (compose network: web-docker)
+|   nginx  (web-nginx)      |------------------------------------+
+|   :80 (reverse proxy)     |                                    |
++---------------------------+                                    |
+        | proxy_pass /api -> http://api:9090                     |
+        | fastcgi_pass -> php:9000 (예: PHP 처리)                |
+        v                                                        v
++---------------------------+                         +---------------------------+
+|   api (web-api)           |                         |   php-fpm (web-php)       |
+|   :9090 (expose only)     |                         |   :9000 (내부통신)        |
+|   외부 직접접근 X         |                         |   외부 직접접근 X         |
++---------------------------+                         +---------------------------+
+        |                                                        |
+        | (캐시/세션 등)                                         | (세션/캐시 등)
+        +----------------------------+---------------------------+
+                                     v
+                         +---------------------------+
+                         |     redis (redis)         |
+                         |     :6379                 |
+                         |     volume: redis-data    |
+                         +---------------------------+
+                                     ^
+                                     |
+                          host 6379:6379 (외부에서 redis-cli 가능)
+
+
+추가: 컨테이너 내부에서 "host.docker.internal" 사용 가능
+- nginx/php/api -> host.docker.internal == 도커 호스트(PC/WSL)의 IP
+```
