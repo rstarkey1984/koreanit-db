@@ -1336,8 +1336,373 @@ Host: {{vhost}}
 ---
 
 
+# 세션(HttpSession)을 Redis로 저장하기
+
+## 1. Docker 컨테이너로 Redis 서버 실행하기
+## docker-compose.yml
+```
+name: web-docker
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: web-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./var/www/test.localhost:/var/www/test.localhost:ro
+      - ./nginx:/etc/nginx/conf.d:ro
+    depends_on:
+      - php
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  php:
+    image: custom-php-fpm:8.3-alpine
+    container_name: web-php
+    restart: unless-stopped
+    volumes:
+      - ./var/www/test.localhost:/var/www/test.localhost:ro
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
+```
+
+## 2. 스프링부트 설정
+
+## 2-1. Gradle 의존성 추가
+### demo/build.gradle 수정:
+```
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.0.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+description = 'Demo project for Spring Boot'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+  implementation 'org.springframework.boot:spring-boot-starter-jdbc' // JDBC support
+  implementation 'org.springframework.boot:spring-boot-starter-webmvc' // Web MVC framework
+  implementation 'org.springframework.security:spring-security-crypto' // Password hashing (BCrypt)
+  implementation 'org.springframework.boot:spring-boot-starter-data-redis' // Redis support
+  implementation 'org.springframework.session:spring-session-data-redis' // Spring Session with Redis
+
+  runtimeOnly 'com.mysql:mysql-connector-j' // MySQL JDBC driver
+  testImplementation 'org.springframework.boot:spring-boot-starter-test'
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+```
+
+### application.yaml에 Redis 접속 정보 추가 :
+```
+server:
+  port: 9091
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: demo
+
+  datasource:
+    url: jdbc:mysql://localhost:3308/testdb?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: test
+    password: test123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+```
+
+
+### DemoApplication.java 파일 수정:
+```
+package com.example.demo;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession; // Import for Redis HTTP session support
+
+@EnableRedisHttpSession // Enable Redis-backed HTTP sessions
+@SpringBootApplication
+public class DemoApplication {
+
+  public static void main(String[] args) {
+    SpringApplication.run(DemoApplication.class, args);
+  }
+
+}
+```
+
+---
+
+# (선택) 스프링부트 API 프로젝트 도커 컨테이너로 배포하기
+
+## .env 파일 열기:
+```
+code ~/projects/web-docker/.env
+```
+
+## .env 파일 수정
+```
+# =========================
+# Spring Profile
+# =========================
+SPRING_PROFILES_ACTIVE=docker
+
+# =========================
+# MySQL (host / WSL)
+# =========================
+DB_HOST=host.docker.internal
+DB_PORT=3308
+DB_NAME=testdb
+DB_USER=test
+DB_PASS=test123
+DB_CHARSET=utf8mb4
+
+# =========================
+# Redis (host / WSL)
+# =========================
+REDIS_HOST=host.docker.internal
+REDIS_PORT=6379
+```
+
+## Docker Compose 에서 사용할 스프링부트 전용 설정 파일 생성:
+
+### application-docker.yaml 파일 열기
+```bash
+code ~/projects/web-docker/demo/src/main/resources/application-docker.yaml
+```
+
+### application-docker.yaml 파일 수정
+```
+server:
+  port: 9090
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: demo
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USER}
+    password: ${DB_PASS}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+```
+
+## 1. 스프링부트 API 서버 Docker 이미지 만들기
+
+### Dockerfile 파일 열기
+```bash
+code ~/projects/web-docker/demo/Dockerfile
+```
+
+### Dockerfile 작성
+```dockerfile
+# ----------------------------------------
+# 1단계: 빌드 스테이지
+# ----------------------------------------
+FROM eclipse-temurin:21-jdk AS builder
+
+WORKDIR /app
+
+# Gradle 관련 파일 복사
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle settings.gradle ./
+COPY src src
+
+# 실행 가능한 Spring Boot JAR 생성
+RUN ./gradlew clean bootJar -x test
+
+
+# ----------------------------------------
+# 2단계: 실행 스테이지
+# ----------------------------------------
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+# 빌드 결과물 복사
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+EXPOSE 9090
+
+# 컨테이너 시작 시 Spring Boot 실행
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+### Docker 이미지 빌드:
+```bash
+docker build -t web-docker-api:1.0 .
+```
+
+빌드 성공시:
+```
+docker images | grep web-docker-api
+```
+
+단독 실행 테스트:
+```
+cd ~/projects/web-docker
+```
+```
+docker run --rm -p 9090:9090 --env-file .env --add-host host.docker.internal:host-gateway web-docker-api:1.0
+```
+
+브라우저 확인
+```
+http://localhost:9090/api/hello
+```
+
+
+# 2. Docker Compose 에 서비스 추가
+
+## docker-compose.yml 파일 수정
+```
+name: web-docker
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: web-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./var/www/test.localhost:/var/www/test.localhost:ro
+      - ./nginx:/etc/nginx/conf.d:ro
+    depends_on:
+      - php
+      - api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  php:
+    image: custom-php-fpm:8.3-alpine
+    container_name: web-php
+    restart: unless-stopped
+    volumes:
+      - ./var/www:/var/www:ro
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  api:
+    image: web-docker-api:1.0
+    container_name: web-api
+    restart: unless-stopped
+    expose:
+      - "9090"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
+
+```
+
+## Nginx 설정 변경
+
+### www.localhost.conf 파일 생성:
+```
+code ~/projects/web-docker/nginx/www.localhost.conf
+```
+
+## www.localhost.conf 파일 수정
+```
+server {
+    listen 80;
+    server_name www.localhost;
+
+    # 웹에서 직접 접근 가능한 루트는 public
+    root /var/www/www.localhost/public;
+    index index.html index.php;
+
+    location / {
+        try_files $uri $uri/ /index.html?$query_string;
+    }
+
+    # /api/로 시작하는 요청은 도커 서비스 백엔드 API 서버로 프록시
+    location /api/ {
+        proxy_pass http://api:9090;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+}
+```
+
+### docker compose 중지 
+```bash
+docker compose down
+```
+
+
+## docker compose 시작
+```bash
+docker compose up -d
+```
+
+
 # HTML 페이지
-### index.html
+
+### index.html 파일 생성:
+```
+code ~/projects/web-docker/var/www/www.localhost/public/index.html
+```
+
+## index.html 파일 수정
 ```html
 <!doctype html>
 <html lang="ko">
@@ -1946,10 +2311,7 @@ Host: {{vhost}}
     createApp({
       data() {
         return {
-          // 1) CORS 없이 쓰려면 Nginx에서 /api 프록시 구성 후 apiBase를 "" 로 두고,
-          //    아래 apiPrefix="/api" 로 호출하면 됩니다.
-          // 2) 지금처럼 백엔드가 9091이면 apiBase를 "http://localhost:9091" 로 두세요.
-          apiBase: "http://test.localhost",
+          apiBase: "http://www.localhost",
           apiPrefix: "/api",
 
           me: { logged_in: false, user_id: null },
@@ -2342,375 +2704,4 @@ Host: {{vhost}}
 </body>
 
 </html>
-```
-
----
-
-# 세션(HttpSession)을 Redis로 저장하기
-
-## 1. Docker 컨테이너로 Redis 서버 실행하기
-## docker-compose.yml
-```
-name: web-docker
-
-services:
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: web-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./var/www/test.localhost:/var/www/test.localhost:ro
-      - ./nginx/test.localhost.conf:/etc/nginx/conf.d/test.localhost.conf:ro
-    depends_on:
-      - php
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-  php:
-    image: custom-php-fpm:8.3-alpine
-    container_name: web-php
-    restart: unless-stopped
-    volumes:
-      - ./var/www/test.localhost:/var/www/test.localhost:ro
-    env_file:
-      - .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-
-volumes:
-  redis-data:
-```
-
-## 2. 스프링부트 설정
-
-## 2-1. Gradle 의존성 추가
-### demo/build.gradle 수정:
-```
-plugins {
-	id 'java'
-	id 'org.springframework.boot' version '4.0.1'
-	id 'io.spring.dependency-management' version '1.1.7'
-}
-
-group = 'com.example'
-version = '0.0.1-SNAPSHOT'
-description = 'Demo project for Spring Boot'
-
-java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
-}
-
-repositories {
-	mavenCentral()
-}
-
-dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-jdbc' // JDBC support
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc' // Web MVC framework
-  implementation 'org.springframework.security:spring-security-crypto' // Password hashing (BCrypt)
-  implementation 'org.springframework.boot:spring-boot-starter-data-redis' // Redis support
-  implementation 'org.springframework.session:spring-session-data-redis' // Spring Session with Redis
-
-  runtimeOnly 'com.mysql:mysql-connector-j' // MySQL JDBC driver
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-tasks.named('test') {
-	useJUnitPlatform()
-}
-```
-
-### application.yaml에 Redis 접속 정보 추가 :
-```
-server:
-  port: 9091
-  forward-headers-strategy: framework
-
-spring:
-  application:
-    name: demo
-
-  datasource:
-    url: jdbc:mysql://localhost:3308/testdb?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: test
-    password: test123
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
-  data:
-    redis:
-      host: localhost
-      port: 6379
-```
-
-
-### DemoApplication.java 파일 수정:
-```
-package com.example.demo;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession; // Import for Redis HTTP session support
-
-@EnableRedisHttpSession // Enable Redis-backed HTTP sessions
-@SpringBootApplication
-public class DemoApplication {
-
-  public static void main(String[] args) {
-    SpringApplication.run(DemoApplication.class, args);
-  }
-
-}
-```
-
----
-
-# (선택) 스프링부트 API 프로젝트 도커 컨테이너로 배포하기
-
-## .env 파일 열기:
-```
-code ~/projects/web-docker/.env
-```
-
-## .env 파일 수정
-```
-# =========================
-# Spring Profile
-# =========================
-SPRING_PROFILES_ACTIVE=docker
-
-# =========================
-# MySQL (host / WSL)
-# =========================
-DB_HOST=host.docker.internal
-DB_PORT=3308
-DB_NAME=testdb
-DB_USER=test
-DB_PASS=test123
-DB_CHARSET=utf8mb4
-
-# =========================
-# Redis (host / WSL)
-# =========================
-REDIS_HOST=host.docker.internal
-REDIS_PORT=6379
-```
-
-## Docker Compose 에서 사용할 스프링부트 전용 설정 파일 생성:
-
-### application-docker.yaml 파일 열기
-```bash
-code ~/projects/web-docker/demo/src/main/resources/application-docker.yaml
-```
-
-### application-docker.yaml 파일 수정
-```
-server:
-  port: 9090
-  forward-headers-strategy: framework
-
-spring:
-  application:
-    name: demo
-
-  datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: ${DB_USER}
-    password: ${DB_PASS}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
-  data:
-    redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
-```
-
-## 1. 스프링부트 API 서버 Docker 이미지 만들기
-
-### Dockerfile 파일 열기
-```bash
-code ~/projects/web-docker/demo/Dockerfile
-```
-
-### Dockerfile 작성
-```dockerfile
-# ----------------------------------------
-# 1단계: 빌드 스테이지
-# ----------------------------------------
-FROM eclipse-temurin:21-jdk AS builder
-
-WORKDIR /app
-
-# Gradle 관련 파일 복사
-COPY gradlew .
-COPY gradle gradle
-COPY build.gradle settings.gradle ./
-COPY src src
-
-# 실행 가능한 Spring Boot JAR 생성
-RUN ./gradlew clean bootJar -x test
-
-
-# ----------------------------------------
-# 2단계: 실행 스테이지
-# ----------------------------------------
-FROM eclipse-temurin:21-jre
-
-WORKDIR /app
-
-# 빌드 결과물 복사
-COPY --from=builder /app/build/libs/*.jar app.jar
-
-EXPOSE 9090
-
-# 컨테이너 시작 시 Spring Boot 실행
-ENTRYPOINT ["java", "-jar", "app.jar"]
-```
-### Docker 이미지 빌드:
-```bash
-docker build -t web-docker-api:1.0 .
-```
-
-빌드 성공시:
-```
-docker images | grep web-docker-api
-```
-
-단독 실행 테스트:
-```
-cd ~/projects/web-docker
-```
-```
-docker run --rm -p 9090:9090 --env-file .env --add-host host.docker.internal:host-gateway web-docker-api:1.0
-```
-
-브라우저 확인
-```
-http://localhost:9090/api/hello
-```
-
-
-# 2. Docker Compose 에 서비스 추가
-
-## docker-compose.yml 파일 수정
-```
-name: web-docker
-
-services:
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: web-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./var/www/test.localhost:/var/www/test.localhost:ro
-      - ./nginx/test.localhost.conf:/etc/nginx/conf.d/test.localhost.conf:ro
-    depends_on:
-      - php
-      - api
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  php:
-    image: custom-php-fpm:8.3-alpine
-    container_name: web-php
-    restart: unless-stopped
-    volumes:
-      - ./var/www/test.localhost:/var/www/test.localhost:ro
-    env_file:
-      - .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  api:
-    image: web-docker-api:1.0
-    container_name: web-api
-    restart: unless-stopped
-    expose:
-      - "9090"
-    env_file:
-      - .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-
-volumes:
-  redis-data:
-```
-
-## Nginx 설정 변경
-
-## test.localhost.conf 파일 수정
-```
-server {
-    listen 80;
-    server_name test.localhost;
-
-    # 웹에서 직접 접근 가능한 루트는 public
-    root /var/www/test.localhost/public;
-    index index.html index.php;
-
-    location / {
-        try_files $uri $uri/ /index.html?$query_string;
-    }
-
-    # /api-test/ 로 시작하는 요청은 테스트 백엔드 API 서버로 프록시 패스
-    location /api-test/ {
-        proxy_pass http://host.docker.internal:9091;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # /api/로 시작하는 요청은 도커 서비스 백엔드 API 서버로 프록시
-    location /api/ {
-        proxy_pass http://api:9090;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # PHP 요청을 PHP-FPM으로 전달
-    location ~ \.php$ {
-        include fastcgi_params;
-        
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-
-        fastcgi_pass php:9000;   # compose의 서비스명 php로 연결
-    }
-}
-```
-
-### docker compose 중지 
-```bash
-docker compose down
-```
-
-
-## docker compose 시작
-```bash
-docker compose up -d
 ```
