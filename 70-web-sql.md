@@ -406,61 +406,325 @@ code src/main/java/com/example/demo/controller/ApiController.java
 // 보통 controller 패키지에는 HTTP 요청을 처리하는 클래스들이 들어간다
 package com.example.demo.controller;
 
+// --------------------------------------------------
 // JDBC 관련 클래스들
-// DB 연결, SQL 실행, 결과 조회에 사용
+// - DB 연결(Connection)
+// - SQL 실행(PreparedStatement)
+// - 결과 조회(ResultSet)
+// --------------------------------------------------
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+
+// --------------------------------------------------
+// 컬렉션 클래스들
+// - SQL 결과를 담아서 JSON으로 내려주기 위해 사용
+// --------------------------------------------------
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-// 커넥션 풀(DataSource)을 사용하기 위한 인터페이스
+// --------------------------------------------------
+// 커넥션 풀(DataSource)
+// - DB 커넥션을 직접 생성하지 않고
+// - 스프링이 관리하는 커넥션 풀에서 꺼내 쓰기 위한 인터페이스
+// --------------------------------------------------
 import javax.sql.DataSource;
 
+// --------------------------------------------------
 // HTTP 요청 매핑 관련 스프링 애노테이션
+// --------------------------------------------------
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 // --------------------------------------------------
 // @RestController
 // - 이 클래스가 "컨트롤러"임을 스프링에게 알림
-// - return 값이 View(html)가 아니라
-//   HTTP 응답 바디로 바로 나가도록 설정
+// - 메서드의 return 값이
+//   View(html)가 아니라 HTTP 응답 바디(JSON 등)로 바로 내려감
 // --------------------------------------------------
 @RestController
-@RequestMapping("/api") // 모든 엔드포인트에 /api prefix 부여
+
+// --------------------------------------------------
+// @RequestMapping("/api")
+// - 이 컨트롤러 안의 모든 URL 앞에 /api 가 자동으로 붙는다
+//   예) /db-debug  →  /api/db-debug
+// --------------------------------------------------
+@RequestMapping("/api")
 public class ApiController {
 
   // --------------------------------------------------
   // DataSource
   // - DB 커넥션을 관리하는 객체 (커넥션 풀)
-  // - 스프링이 미리 생성해서 주입해줌
+  // - application.yml 에 설정한 datasource 정보를 기반으로
+  //   스프링이 자동으로 생성해서 주입해준다
   // --------------------------------------------------
   private final DataSource dataSource;
 
   // --------------------------------------------------
   // 생성자 주입
-  // - 스프링이 DataSource 객체를 자동으로 넣어줌
-  // - 이 컨트롤러는 DB 연결이 필요하다는 의미
+  // - 스프링이 이 컨트롤러를 생성할 때
+  //   DataSource 객체를 자동으로 전달해준다
+  // - 이 방식은 "의존성 주입(DI)"의 기본 형태
   // --------------------------------------------------
   public ApiController(DataSource dataSource) {
     this.dataSource = dataSource;
   }
 
   // --------------------------------------------------
-  // GET /db-debug 요청을 처리하는 메서드
-  // - 브라우저, 프론트엔드, API 테스트 도구에서 호출 가능
+  // GET /api/db-debug
+  //
+  // - DB 연결이 정상적으로 되는지 확인하기 위한 디버그용 API
+  // - 실습 환경에서 "DB가 붙었나?"를 빠르게 확인할 때 사용
+  // - 브라우저, REST Client, curl 등에서 바로 호출 가능
   // --------------------------------------------------
   @GetMapping("/db-debug")
   public List<Map<String, Object>> dbDebug() throws Exception {
 
-    String sql = "SELECT * FROM users LIMIT 5";
+    // --------------------------------------------------
+    // 실행할 SQL
+    // - users 테이블에서 일부 컬럼만 조회
+    // - LIMIT 5로 결과 개수 제한
+    // --------------------------------------------------
+    String sql = "SELECT id1, nickname FROM users LIMIT 5";
 
+    // --------------------------------------------------
+    // SQL 결과를 담을 리스트
+    // - 한 행(row)은 Map<String, Object>
+    // - 여러 행을 List로 묶어서 JSON 배열로 내려줌
+    // --------------------------------------------------
     List<Map<String, Object>> result = new ArrayList<>();
 
+    // --------------------------------------------------
+    // try-with-resources
+    // - try 블록이 끝나면
+    //   Connection / PreparedStatement / ResultSet 이 자동으로 close 된다
+    // - DB 자원 누수 방지를 위한 필수 패턴
+    // --------------------------------------------------
+    try (Connection conn = dataSource.getConnection();
+        PreparedStatement ps = conn.prepareStatement(sql);
+        ResultSet rs = ps.executeQuery()) {
+
+      // --------------------------------------------------
+      // ResultSetMetaData
+      // - SELECT 결과의 컬럼 정보(개수, 이름 등)를 가져오기 위해 사용
+      // - 컬럼 개수를 모르거나, 범용 조회 코드에서 유용
+      // --------------------------------------------------
+      ResultSetMetaData meta = rs.getMetaData();
+      int columnCount = meta.getColumnCount();
+
+      // --------------------------------------------------
+      // ResultSet 은 여러 행을 가질 수 있으므로 while(rs.next())
+      // - rs.next() : 다음 행이 있으면 true
+      // --------------------------------------------------
+      while (rs.next()) {
+        Map<String, Object> row = new HashMap<>();
+
+        // --------------------------------------------------
+        // 각 컬럼을 순회하면서
+        // 컬럼명 → 값 형태로 Map에 저장
+        // --------------------------------------------------
+        for (int i = 1; i <= columnCount; i++) {
+
+          // 컬럼 이름 (alias가 있으면 alias 기준)
+          String columnName = meta.getColumnLabel(i);
+
+          // 컬럼 값 (타입은 신경 쓰지 않고 Object로 받음)
+          Object value = rs.getObject(i);
+
+          row.put(columnName, value);
+        }
+
+        // 한 행 완성 → 리스트에 추가
+        result.add(row);
+      }
+
+    } catch (Exception e) {
+      // --------------------------------------------------
+      // 예외 발생 시 그대로 던짐
+      // - 지금 단계에서는 try/catch로 메시지 가공하지 않고
+      //   "에러가 났다"는 것 자체를 확인하는 게 목적
+      // --------------------------------------------------
+      throw e;
+    }
+
+    // --------------------------------------------------
+    // 최종 결과 반환
+    // - @RestController 이므로
+    //   List<Map<...>> 가 JSON 배열로 자동 변환되어 응답 바디로 내려감
+    // --------------------------------------------------
+    return result;
+  }
+}
+```
+> @RestController에서는 return 객체를 하면, 스프링이 그 객체를 JSON 형태로 바꿔서 응답 바디로 보낸다.   
+> 응답 바디 = 클라이언트가 실제로 받는 내용물(HTML, JSON 같은 데이터)
+
+응답 예:
+```json
+[{"1":1}]
+```
+
+
+## 6-1. 공통 응답 구현하기
+```java
+// --------------------------------------------------
+// 공통 유틸: 응답 포맷
+// - 모든 API 응답을 다음 형태로 통일하기 위함
+//
+//   성공:
+//   { ok: true, data: ... }
+//
+//   실패:
+//   { ok: false, message: "이유" }
+//
+// - 프론트엔드 / 테스트 코드에서
+//   항상 ok 값만 보고 성공/실패를 판단할 수 있다
+// --------------------------------------------------
+private Map<String, Object> ok(Object data) {
+  Map<String, Object> r = new HashMap<>();
+  r.put("ok", true);
+  r.put("data", data);
+  return r;
+}
+
+private Map<String, Object> fail(String message) {
+  Map<String, Object> r = new HashMap<>();
+  r.put("ok", false);
+  r.put("message", message);
+  return r;
+}
+```
+
+## 6-2. 수정된 ApiController.java
+```java
+// 이 클래스가 속한 패키지 경로
+// 보통 controller 패키지에는 HTTP 요청을 처리하는 클래스들이 들어간다
+package com.example.demo.controller;
+
+// --------------------------------------------------
+// JDBC 관련 클래스들
+// - DB 연결(Connection)
+// - SQL 실행(PreparedStatement)
+// - 결과 조회(ResultSet)
+// --------------------------------------------------
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+
+// --------------------------------------------------
+// 컬렉션 클래스들
+// - SQL 결과를 담아서 JSON으로 내려주기 위해 사용
+// --------------------------------------------------
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+// --------------------------------------------------
+// 커넥션 풀(DataSource)
+// - DB 커넥션을 직접 생성하지 않고
+// - 스프링이 관리하는 커넥션 풀에서 꺼내 쓰기 위한 인터페이스
+// --------------------------------------------------
+import javax.sql.DataSource;
+
+// --------------------------------------------------
+// HTTP 요청 매핑 관련 스프링 애노테이션
+// --------------------------------------------------
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+// --------------------------------------------------
+// @RestController
+// - 이 클래스가 "컨트롤러"임을 스프링에게 알림
+// - 메서드의 return 값이
+//   View(html)가 아니라 HTTP 응답 바디(JSON 등)로 바로 내려감
+// --------------------------------------------------
+@RestController
+
+// --------------------------------------------------
+// @RequestMapping("/api")
+// - 이 컨트롤러 안의 모든 URL 앞에 /api 가 자동으로 붙는다
+// 예) /db-debug → /api/db-debug
+// --------------------------------------------------
+@RequestMapping("/api")
+public class ApiController {
+
+  // --------------------------------------------------
+  // DataSource
+  // - DB 커넥션을 관리하는 객체 (커넥션 풀)
+  // - application.yml 에 설정한 datasource 정보를 기반으로
+  // 스프링이 자동으로 생성해서 주입해준다
+  // --------------------------------------------------
+  private final DataSource dataSource;
+
+  // --------------------------------------------------
+  // 생성자 주입
+  // - 스프링이 이 컨트롤러를 생성할 때
+  // DataSource 객체를 자동으로 전달해준다
+  // - 이 방식은 "의존성 주입(DI)"의 기본 형태
+  // --------------------------------------------------
+  public ApiController(DataSource dataSource) {
+    this.dataSource = dataSource;
+  }
+
+  // --------------------------------------------------
+  // 공통 유틸: 응답 포맷
+  // - 모든 API 응답을 다음 형태로 통일하기 위함
+  //
+  // 성공:
+  // { ok: true, data: ... }
+  //
+  // 실패:
+  // { ok: false, message: "이유" }
+  //
+  // - 프론트엔드 / 테스트 코드에서
+  // 항상 ok 값만 보고 성공/실패를 판단할 수 있다
+  // --------------------------------------------------
+  private Map<String, Object> ok(Object data) {
+    Map<String, Object> r = new HashMap<>();
+    r.put("ok", true);
+    r.put("data", data);
+    return r;
+  }
+
+  private Map<String, Object> fail(String message) {
+    Map<String, Object> r = new HashMap<>();
+    r.put("ok", false);
+    r.put("message", message);
+    return r;
+  }
+
+  // --------------------------------------------------
+  // GET /api/db-debug
+  //
+  // - DB 연결이 정상적으로 되는지 확인하기 위한 디버그용 API
+  // - 실습 환경에서 "DB가 붙었나?"를 빠르게 확인할 때 사용
+  // - 브라우저, REST Client, curl 등에서 바로 호출 가능
+  // --------------------------------------------------
+  @GetMapping("/db-debug")
+  public Map<String, Object> dbDebug() {
+
+    // --------------------------------------------------
+    // 실행할 SQL
+    // - users 테이블에서 일부 컬럼만 조회
+    // - LIMIT 5로 결과 개수 제한
+    // --------------------------------------------------
+    String sql = "SELECT id1, nickname FROM users LIMIT 5";
+
+    // --------------------------------------------------
+    // SQL 결과를 담을 리스트
+    // --------------------------------------------------
+    List<Map<String, Object>> result = new ArrayList<>();
+
+    // --------------------------------------------------
+    // try-with-resources
+    // --------------------------------------------------
     try (Connection conn = dataSource.getConnection();
         PreparedStatement ps = conn.prepareStatement(sql);
         ResultSet rs = ps.executeQuery()) {
@@ -472,36 +736,67 @@ public class ApiController {
         Map<String, Object> row = new HashMap<>();
 
         for (int i = 1; i <= columnCount; i++) {
-          String columnName = meta.getColumnLabel(i); // alias 있으면 alias
-          Object value = rs.getObject(i); // 타입 신경 안 씀
+          String columnName = meta.getColumnLabel(i);
+          Object value = rs.getObject(i);
           row.put(columnName, value);
         }
 
         result.add(row);
       }
-    }
 
-    return result;
+      // ------------------------------
+      // 정상 처리 → ok 응답
+      // ------------------------------
+      return ok(result);
+
+    } catch (Exception e) {
+      // ------------------------------
+      // 에러 발생 → fail 응답
+      // ------------------------------
+      return fail("DB 조회 실패");
+    }
   }
 }
 ```
-> @RestController에서는 return 객체를 하면, 스프링이 그 객체를 JSON 형태로 바꿔서 응답 바디로 보낸다.
 
-> 응답 바디 = 클라이언트가 실제로 받는 내용물(HTML, JSON 같은 데이터)
+### 이 코드에서 중요한 점
 
-응답 예:
-```json
-[{"1":1}]
+- ResultSet은 여러 행이므로 while (rs.next()) 사용
+
+- 한 행 → Map<String, Object>
+
+- 여러 행 → List<Map<String, Object>>
+
+- SQL 결과가 그대로 JSON 배열로 변환된다
+
+- 화면 처리 로직은 전혀 없다
+
+### (선택) curl로 POST 요청 테스트
+```bash
+curl -i http://localhost:9091/api/db-debug
 ```
+```bash
+curl -i http://test.localhost/api/db-debug
+```
+
+### VSCode 에서 REST Client 확장 설치
+
+- VSCode 왼쪽 확장(Extention) 에서 REST Client 검색 후 설치
+
+- api-test.http 파일 생성
+
+### REST Client 테스트 파일 생성 (api-test.http)
+```
+### 디버그
+GET http://127.0.0.1:9091/api/db-debug
+Host: test.localhost
+Content-Type: application/json
+```
+
 ---
 
 
 # 7. API 서버 구성하기
-
-> 이 장은 UI를 만드는 장이 아니라,    
-> SQL 결과를 API로 전달하는 구조를 이해하는 장이다.
-
----
 
 ## API 서버란 무엇인가
 
@@ -563,92 +858,85 @@ LIMIT 20;
 ## ApiController.java 
 ```java
 @GetMapping("/posts")
-public List<Map<String, Object>> postList() throws Exception {
+public Map<String, Object> postList() throws Exception {
 
-    String sql = """
-        SELECT id, user_id, title, content, view_count, created_at
-        FROM posts
-        ORDER BY id DESC
-        LIMIT 20;
-    """;
+  String sql = """
+          SELECT id, user_id, title, content, view_count, created_at
+          FROM posts
+          ORDER BY id DESC
+          LIMIT 20;
+      """;
 
-    List<Map<String, Object>> result = new ArrayList<>();
+  List<Map<String, Object>> result = new ArrayList<>();
 
-    try (Connection conn = dataSource.getConnection();
-         PreparedStatement ps = conn.prepareStatement(sql);
-         ResultSet rs = ps.executeQuery()) {
+  try (Connection conn = dataSource.getConnection();
+      PreparedStatement ps = conn.prepareStatement(sql);
+      ResultSet rs = ps.executeQuery()) {
 
-        while (rs.next()) {
-            Map<String, Object> row = new HashMap<>();
+    while (rs.next()) {
+      Map<String, Object> row = new HashMap<>();
 
-            row.put("id", rs.getInt("id"));
-            row.put("user_id", rs.getInt("user_id"));
-            row.put("title", rs.getString("title"));
-            row.put("content", rs.getString("content"));
-            row.put("view_count", rs.getInt("view_count"));
-            row.put("created_at", rs.getTimestamp("created_at"));
+      row.put("id", rs.getInt("id"));
+      row.put("user_id", rs.getInt("user_id"));
+      row.put("title", rs.getString("title"));
+      row.put("content", rs.getString("content"));
+      row.put("view_count", rs.getString("view_count"));
+      row.put("created_at", rs.getString("created_at"));
 
-            result.add(row);
-        }
+      result.add(row);
     }
 
-    return result;
+    // ------------------------------
+    // 정상 처리 → ok 응답
+    // ------------------------------
+    return ok(result);
+  } catch (Exception e) {
+    // ------------------------------
+    // 에러 발생 → fail 응답
+    // ------------------------------
+    return fail("DB 조회 실패");
+  }
 }
 ```
 
-### 이 코드에서 중요한 점
-
-- ResultSet은 여러 행이므로 while (rs.next()) 사용
-
-- 한 행 → Map<String, Object>
-
-- 여러 행 → List<Map<String, Object>>
-
-- SQL 결과가 그대로 JSON 배열로 변환된다
-
-- 화면 처리 로직은 전혀 없다
-
-
 ### API 응답 예시
 ```json
-[
-    {   
-        "id": 1048596,
-        "user_id": 1,
-        "title": "테스트10",
-        "content": "내용",
-        "view_count": 0,
-        "created_at": "2025-12-30T13:00:56.000Z"
+{
+  "data": [
+    {
+      "user_id": 104,
+      "created_at": "2026-01-04 21:27:54",
+      "id": 1048624,
+      "title": "123",
+      "content": "123",
+      "view_count": "2"
     },
     {
-        "id": 1048592,
-        "user_id": 1,
-        "title": "테스트6",
-        "content": "내용",
-        "view_count": 0,
-        "created_at": "2025-12-30T13:00:56.000Z"
+      "user_id": 104,
+      "created_at": "2026-01-04 21:27:48",
+      "id": 1048623,
+      "title": "123",
+      "content": "123",
+      "view_count": "1"
+    },
+    ...
+    {
+      "user_id": 1,
+      "created_at": "2026-01-02 00:48:55",
+      "id": 1048602,
+      "title": "API 글제목",
+      "content": "API 글내용",
+      "view_count": "0"
     }
-]
+  ],
+  "ok": true
+}
 ```
-
-(선택) curl로 POST 요청 테스트
-```bash
-curl http://localhost:9091/api/posts
-```
-```bash
-curl http://test.localhost/api/hello
-```
-
-## VSCode 에서 REST Client 확장 설치
-
-- VSCode 왼쪽 확장(Extention) 에서 REST Client 검색 후 설치
-
-- api-test.http 파일 생성
 
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 게시글 조회
-GET http://127.0.0.1/api/posts
+GET http://127.0.0.1:9091/api/posts
 Host: test.localhost
 ```
 
@@ -678,47 +966,11 @@ INSERT 실행 (users)
 처리 결과(JSON) 반환
 ```
 
-## 요청/응답 형태
-### POST test.localhost/api/signup
-
-요청(JSON)
-```json
-{
-  "username": "test",
-  "password": "1234",
-  "nickname": "홍길동"
-}
-```
-
-성공 응답 예
-```json
-{
-  "ok": true,
-  "user_id": 105
-}
-```
-
-실패 응답 예(아이디 중복)
-```json
-{
-  "ok": false,
-  "message": "아이디 중복"
-}
-```
-
-실패 응답 예(입력값 오류)
-```json
-{
-  "ok": false,
-  "message": "입력값 오류"
-}
-```
-
 ## ApiController.java
 
 import 추가
 ```
-import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.security.crypto.bcrypt.BCrypt; // BCrypt 해시 함수
 ```
 
 회원가입 메서드 추가
@@ -730,22 +982,16 @@ public Map<String, Object> signup(@RequestBody Map<String, Object> body) throws 
   String password = (String) body.get("password");
   String nickname = (String) body.get("nickname");
 
-  Map<String, Object> result = new HashMap<>();
-
   // 1) 입력값 최소 검증
   if (username == null || username.isBlank() ||
       password == null || password.isBlank() ||
       nickname == null || nickname.isBlank()) {
-    result.put("ok", false);
-    result.put("message", "입력값 오류");
-    return result;
+    return fail("입력값 오류");
   }
 
   // (선택) 길이 제한 예시
   if (username.length() > 50 || password.length() > 100 || nickname.length() > 50) {
-    result.put("ok", false);
-    result.put("message", "입력값 오류");
-    return result;
+    return fail("입력값 오류");
   }
 
   // 2) 중복 체크
@@ -770,9 +1016,7 @@ public Map<String, Object> signup(@RequestBody Map<String, Object> body) throws 
 
       try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
-          result.put("ok", false);
-          result.put("message", "이미 존재하는 아이디");
-          return result;
+          return fail("이미 존재하는 아이디");
         }
       }
     }
@@ -781,31 +1025,26 @@ public Map<String, Object> signup(@RequestBody Map<String, Object> body) throws 
     String hash = BCrypt.hashpw(password, BCrypt.gensalt());
 
     // 5) users INSERT
-    try (PreparedStatement ps = conn.prepareStatement(insertSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+    try (PreparedStatement ps =
+        conn.prepareStatement(insertSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+
       ps.setString(1, username);
       ps.setString(2, hash);
       ps.setString(3, nickname);
 
       int affectedRows = ps.executeUpdate();
-
       if (affectedRows != 1) {
-        result.put("ok", false);
-        result.put("message", "입력 실패");
-        return result;
+        return fail("입력 실패");
       }
 
       // 6) 생성된 user_id 얻기
       try (ResultSet keys = ps.getGeneratedKeys()) {
-        if (keys.next()) {
-          int userId = keys.getInt(1);
-          result.put("ok", true);
-          result.put("user_id", userId);
-          return result;
-        } else {
-          result.put("ok", false);
-          result.put("message", "생성된 user_id 키 없음");
-          return result;
+        if (!keys.next()) {
+          return fail("생성된 user_id 키 없음");
         }
+
+        int userId = keys.getInt(1);
+        return ok(Map.of("user_id", userId));
       }
     }
   }
@@ -816,7 +1055,7 @@ public Map<String, Object> signup(@RequestBody Map<String, Object> body) throws 
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 회원가입
-POST http://127.0.0.1/api/signup
+POST http://127.0.0.1:9091/api/signup
 Host: test.localhost
 Content-Type: application/json
 
@@ -830,46 +1069,15 @@ Content-Type: application/json
 
 ---
 
-## 7-3. 세션(Session)으로 로그인 사용자 식별하기
-
-## 로그인 API 만들기 (세션 저장)
-
-### 로그인 요청/응답 형태
-
-### POST test.localhost/api/login
-```json
-{
-  "username": "test",
-  "password": "1234"
-}
-```
-
-성공 응답 예:
-```json
-{
-  "user_id": 104,
-  "ok": true
-}
-```
-
-
-실패 응답 예:
-```json
-{
-  "ok": false,
-  "message": "로그인 실패"
-}
-```
-
-
-
+## 7-3. 로그인 ( SELECT + 세션(Session) 사용 )
 
 ## ApiController.java
 
 import 추가
 ```java
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder; // BCryptPasswordEncoder
+import org.springframework.security.crypto.password.PasswordEncoder; // PasswordEncoder 인터페이스
+import jakarta.servlet.http.HttpSession; // HTTP 세션
 ```
 
 멤버 변수 선언
@@ -886,13 +1094,10 @@ public Map<String, Object> login(@RequestBody Map<String, Object> body, HttpSess
   String username = (String) body.get("username");
   String password = (String) body.get("password");
 
-  Map<String, Object> result = new HashMap<>();
-
-  // 입력값 최소 검증
-  if (username == null || username.isBlank() || password == null || password.isBlank()) {
-    result.put("ok", false);
-    result.put("message", "입력값 오류");
-    return result;
+  // 1) 입력값 최소 검증
+  if (username == null || username.isBlank() ||
+      password == null || password.isBlank()) {
+    return fail("입력값 오류");
   }
 
   String sql = """
@@ -903,16 +1108,14 @@ public Map<String, Object> login(@RequestBody Map<String, Object> body, HttpSess
       """;
 
   try (Connection conn = dataSource.getConnection();
-        PreparedStatement ps = conn.prepareStatement(sql)) {
+      PreparedStatement ps = conn.prepareStatement(sql)) {
 
     ps.setString(1, username);
 
     try (ResultSet rs = ps.executeQuery()) {
       if (!rs.next()) {
-        // 아이디가 없음
-        result.put("ok", false);
-        result.put("message", "아이디 없음");
-        return result;
+        // 아이디 없음
+        return fail("아이디 없음");
       }
 
       int userId = rs.getInt("id");
@@ -920,34 +1123,32 @@ public Map<String, Object> login(@RequestBody Map<String, Object> body, HttpSess
 
       boolean ok = passwordEncoder.matches(password, hash);
       if (!ok) {
-        result.put("ok", false);
-        result.put("message", "비밀번호 오류");
-        return result;
+        return fail("비밀번호 오류");
       }
 
       // 로그인 성공: 세션에 사용자 식별자 저장
       session.setAttribute("user_id", userId);
 
-      result.put("ok", true);
-      result.put("user_id", userId);
-      return result;
+      return ok(Map.of("user_id", userId));
     }
   }
 }
 
 @PostMapping("/logout")
 public Map<String, Object> logout(HttpSession session) {
-  session.invalidate(); // 세션 파기
-  Map<String, Object> result = new HashMap<>();
-  result.put("ok", true);
-  return result;
+
+  // 세션 무효화
+  session.invalidate();
+
+  // 성공 응답
+  return ok(Map.of());
 }
 ```
 
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 로그인
-POST http://127.0.0.1/api/login
+POST http://127.0.0.1:9091/api/login
 Host: test.localhost
 Content-Type: application/json
 
@@ -957,7 +1158,7 @@ Content-Type: application/json
 }
 
 ### 로그아웃
-POST http://127.0.0.1/api/logout
+POST http://127.0.0.1:9091/api/logout
 Host: test.localhost
 Content-Type: application/json
 ```
@@ -994,17 +1195,21 @@ MySQL
 public Map<String, Object> createPost(@RequestBody Map<String, Object> body, HttpSession session)
     throws Exception {
 
-  Map<String, Object> result = new HashMap<>();
-
   // 1) 로그인 여부 확인
   Object userIdObj = session.getAttribute("user_id");
   if (userIdObj == null) {
-    result.put("ok", false);
-    result.put("message", "로그인 필요");
-    return result;
+    return fail("로그인 필요");
   }
 
-  int user_id = (int) userIdObj;
+  int userId = (int) userIdObj;
+
+  // 2) 입력값 파싱 + 최소 검증(권장)
+  String title = (String) body.get("title");
+  String content = (String) body.get("content");
+
+  if (title == null || title.isBlank() || content == null || content.isBlank()) {
+    return fail("입력값 오류");
+  }
 
   String sql = """
       INSERT INTO posts (user_id, title, content)
@@ -1014,30 +1219,23 @@ public Map<String, Object> createPost(@RequestBody Map<String, Object> body, Htt
   try (Connection conn = dataSource.getConnection();
       PreparedStatement ps = conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
 
-    ps.setInt(1, user_id);
-    ps.setString(2, (String) body.get("title"));
-    ps.setString(3, (String) body.get("content"));
+    ps.setInt(1, userId);
+    ps.setString(2, title);
+    ps.setString(3, content);
 
     int affectedRows = ps.executeUpdate();
-
     if (affectedRows != 1) {
-      result.put("ok", false);
-      result.put("message", "입력 실패");
-      return result;
+      return fail("입력 실패");
     }
 
-    // 6) 생성된 post_id 얻기
+    // 3) 생성된 post_id 얻기
     try (ResultSet keys = ps.getGeneratedKeys()) {
-      if (keys.next()) {
-        int postId = keys.getInt(1);
-        result.put("ok", true);
-        result.put("post_id", postId);
-        return result;
-      } else {
-        result.put("ok", false);
-        result.put("message", "생성된 post_id 키 없음");
-        return result;
+      if (!keys.next()) {
+        return fail("생성된 post_id 키 없음");
       }
+
+      int postId = keys.getInt(1);
+      return ok(Map.of("post_id", postId));
     }
   }
 }
@@ -1047,7 +1245,7 @@ public Map<String, Object> createPost(@RequestBody Map<String, Object> body, Htt
 
 ```
 ### 게시글 등록
-POST http://127.0.0.1/api/posts
+POST http://127.0.0.1:9091/api/posts
 Host: test.localhost
 Content-Type: application/json
 
@@ -1088,23 +1286,14 @@ MySQL (ON DELETE CASCADE로 comments 같이 삭제될 수 있음)
 ## ApiController.java
 
 ```java
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-```
-
-```java
 @DeleteMapping("/posts/{id}")
 public Map<String, Object> deletePost(@PathVariable("id") int id, HttpSession session)
     throws Exception {
 
-  Map<String, Object> result = new HashMap<>();
-
   // 1) 로그인 확인
   Object userIdObj = session.getAttribute("user_id");
   if (userIdObj == null) {
-    result.put("ok", false);
-    result.put("message", "로그인 필요");
-    return result;
+    return fail("로그인 필요");
   }
 
   int userId = (int) userIdObj;
@@ -1116,28 +1305,24 @@ public Map<String, Object> deletePost(@PathVariable("id") int id, HttpSession se
       WHERE id = ?
       """;
 
-  Integer ownerId = null;
-
   try (Connection conn = dataSource.getConnection();
-       PreparedStatement ps = conn.prepareStatement(ownerSql)) {
+      PreparedStatement ps = conn.prepareStatement(ownerSql)) {
 
     ps.setInt(1, id);
+
+    Integer ownerId;
 
     try (ResultSet rs = ps.executeQuery()) {
       if (!rs.next()) {
         // 삭제할 글이 없음
-        result.put("ok", false);
-        result.put("message", "게시글 없음");
-        return result;
+        return fail("게시글 없음");
       }
       ownerId = rs.getInt("user_id");
     }
 
-    if (ownerId == null || ownerId != userId) {
+    if (ownerId == null || ownerId.intValue() != userId) {
       // 남의 글 삭제 시도
-      result.put("ok", false);
-      result.put("message", "권한 없음");
-      return result;
+      return fail("권한 없음");
     }
 
     // 3) DELETE 실행
@@ -1148,9 +1333,8 @@ public Map<String, Object> deletePost(@PathVariable("id") int id, HttpSession se
 
       int affectedRows = ps2.executeUpdate();
 
-      result.put("ok", true);
-      result.put("deleted", affectedRows); // 정상이라면 1
-      return result;
+      // 정상이라면 1
+      return ok(Map.of("deleted", affectedRows));
     }
   }
 }
@@ -1161,7 +1345,7 @@ public Map<String, Object> deletePost(@PathVariable("id") int id, HttpSession se
 
 ```
 ### 게시글 삭제
-DELETE http://127.0.0.1/api/posts/1
+DELETE http://127.0.0.1:9091/api/posts/1
 Host: test.localhost
 Content-Type: application/json
 ```
@@ -1195,59 +1379,9 @@ MySQL
 
 ### URL 설계
 
-- 수정은 보통 리소스 기반으로 URL을 잡는다.
+- 수정은 보통 Put 리소스 기반으로 URL을 잡는다.
 
 - PUT /posts/10 → id=10 게시글 수정
-
-## 요청/응답 형태
-### PUT test.localhost/api/posts/{id}
-
-요청(JSON)
-```json
-{
-  "title": "수정된 제목",
-  "content": "수정된 내용"
-}
-```
-성공 응답 예
-```json
-{
-  "ok": true,
-  "updated": 1
-}
-```
-
-실패 응답 예(로그인 필요)
-```json
-{
-  "ok": false,
-  "message": "로그인 필요"
-}
-```
-
-실패 응답 예(게시글 없음)
-```json
-{
-  "ok": false,
-  "message": "게시글 없음"
-}
-```
-
-실패 응답 예(권한 없음)
-```json
-{
-  "ok": false,
-  "message": "권한 없음"
-}
-```
-
-실패 응답 예(입력값 오류)
-```json
-{
-  "ok": false,
-  "message": "입력값 오류"
-}
-```
 
 ## ApiController.java
 
@@ -1259,14 +1393,10 @@ public Map<String, Object> updatePost(
     HttpSession session
 ) throws Exception {
 
-  Map<String, Object> result = new HashMap<>();
-
   // 1) 로그인 확인
   Object userIdObj = session.getAttribute("user_id");
   if (userIdObj == null) {
-    result.put("ok", false);
-    result.put("message", "로그인 필요");
-    return result;
+    return fail("로그인 필요");
   }
   int userId = (int) userIdObj;
 
@@ -1275,16 +1405,12 @@ public Map<String, Object> updatePost(
   String content = (String) body.get("content");
 
   if (title == null || title.isBlank() || content == null || content.isBlank()) {
-    result.put("ok", false);
-    result.put("message", "입력값 오류");
-    return result;
+    return fail("입력값 오류");
   }
 
   // (선택) 길이 제한
   if (title.length() > 200 || content.length() > 5000) {
-    result.put("ok", false);
-    result.put("message", "입력값 오류");
-    return result;
+    return fail("입력값 오류");
   }
 
   // 3) 권한 확인: 글 작성자인지 검사
@@ -1303,7 +1429,7 @@ public Map<String, Object> updatePost(
 
   try (Connection conn = dataSource.getConnection()) {
 
-    Integer ownerId = null;
+    Integer ownerId;
 
     // 3) 작성자 확인
     try (PreparedStatement ps = conn.prepareStatement(ownerSql)) {
@@ -1311,18 +1437,14 @@ public Map<String, Object> updatePost(
 
       try (ResultSet rs = ps.executeQuery()) {
         if (!rs.next()) {
-          result.put("ok", false);
-          result.put("message", "게시글 없음");
-          return result;
+          return fail("게시글 없음");
         }
         ownerId = rs.getInt("user_id");
       }
     }
 
-    if (ownerId == null || ownerId != userId) {
-      result.put("ok", false);
-      result.put("message", "권한 없음");
-      return result;
+    if (ownerId == null || ownerId.intValue() != userId) {
+      return fail("권한 없음");
     }
 
     // 4) UPDATE 실행
@@ -1333,9 +1455,8 @@ public Map<String, Object> updatePost(
 
       int affectedRows = ps.executeUpdate();
 
-      result.put("ok", true);
-      result.put("updated", affectedRows); // 정상이라면 1
-      return result;
+      // 정상이라면 1
+      return ok(Map.of("updated", affectedRows));
     }
   }
 }
@@ -1355,7 +1476,7 @@ public Map<String, Object> updatePost(
 ### REST Client 테스트 추가 (api-test.http)
 ```
 ### 게시글 수정
-PUT http://127.0.0.1/api/posts/1
+PUT http://127.0.0.1:9091/api/posts/1
 Host: test.localhost
 Content-Type: application/json
 
@@ -1373,30 +1494,320 @@ Content-Type: application/json
 
 게시글 테이블(posts)에는 user_id만 들어 있다.
 
-화면(또는 API 응답)에서는 보통 “작성자 닉네임/아이디” 같은 사용자 정보가 필요하다.
+화면(또는 API 응답)에서는 보통 “작성자 닉네임” 같은 사용자 정보가 필요하다.
 
 이럴 때 JOIN으로 posts와 users를 붙여 한 번에 조회한다.
 
-### 목표 응답 예시:
+### SQL 예시:
+```
+SELECT p.id, p.user_id, u.nickname, p.title, p.content, p.view_count, p.created_at
+FROM posts as p
+JOIN users as u on p.user_id = u.id
+ORDER BY p.id DESC
+LIMIT 20
+```
+
+### 1-1. 게시글 조회 요청했을때
+```
+### 게시글 조회
+GET http://127.0.0.1:9091/api/posts
+Host: test.localhost
+```
+
+### 1-2. 목표 응답 예시:
 ```json
-[
-    {   
-        "id": 1048596,
-        "user_id": 1,
-        "nickname": "nickname",
-        "title": "테스트10",
-        "content": "내용",
-        "view_count": 0,
-        "created_at": "2025-12-30T13:00:56.000Z"
-    },
+{
+  "data": [
     {
-        "id": 1048592,
-        "user_id": 1,
-        "nickname": "nickname",
-        "title": "테스트6",
-        "content": "내용",
-        "view_count": 0,
-        "created_at": "2025-12-30T13:00:56.000Z"
+      "user_id": 104,
+      "nickname": "아무개",
+      "created_at": "2026-01-05 22:32:36",
+      "id": 1048631,
+      "title": "수정된 제목",
+      "content": "수정된 내용",
+      "view_count": "0"
+    },
+    ...
+    {
+      "user_id": 1,
+      "nickname": "user_1",
+      "created_at": "2026-01-03 01:20:39",
+      "id": 1048609,
+      "title": "API 글제목",
+      "content": "API 글내용",
+      "view_count": "1"
     }
-]
+  ],
+  "ok": true
+}
+```
+
+## 2. 댓글 목록 출력하는 API 메서드 작성하기
+
+### SQL 예시:
+```
+SELECT
+  c.id,
+  c.post_id,
+  c.user_id,
+  u.nickname,
+  c.comment,
+  c.created_at
+FROM comments c
+JOIN users u ON c.user_id = u.id
+WHERE c.post_id = 1
+ORDER BY c.id ASC
+```
+
+### `--코드작성--` 부분 수정하기 
+
+```java
+// --------------------------------------------------
+// 댓글
+// --------------------------------------------------
+
+/**
+ * GET /posts/{postId}/comments
+ * - 해당 게시글의 댓글 목록
+ * - users JOIN해서 작성자 nickname 포함
+ */
+@GetMapping("--코드작성--")
+public Map<String, Object> commentList(@PathVariable("postId") int postId) throws Exception {
+
+  String sql = """
+      --코드작성--
+      """;
+
+  List<Map<String, Object>> items = new ArrayList<>();
+
+  try (Connection conn = dataSource.getConnection();
+      PreparedStatement ps = conn.prepareStatement(sql)) {
+
+    ps.setInt(1, postId);
+
+    try (ResultSet rs = ps.executeQuery()) {
+      while (rs.next()) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", rs.getInt("id"));
+        row.put("post_id", rs.getInt("post_id"));
+        row.put("user_id", rs.getInt("user_id"));
+        row.put("nickname", rs.getString("nickname"));
+        row.put("comment", rs.getString("comment"));
+        row.put("created_at", rs.getString("created_at"));
+        items.add(row);
+      }
+    }
+
+    // 정상 처리 → ok 응답
+    return ok(items);
+
+  } catch (Exception e) {
+    // 에러 발생 → fail 응답
+    return fail("댓글 목록 조회 실패");
+  }
+}
+```
+
+### REST Client 테스트 추가 (api-test.http)
+```
+### 댓글 목록
+GET http://127.0.0.1:9091/api/posts/1/comments
+Host: test.localhost
+Content-Type: application/json
+```
+
+## 3. 댓글 작성 API 메서드 작성하기
+
+### SQL 예시:
+```
+INSERT INTO comments (post_id, user_id, comment)
+VALUES (1, 1, '댓글')
+```
+
+
+### `--코드작성--` 부분 수정하기
+```java
+/**
+ * POST /posts/{postId}/comments
+ * - 로그인 필요
+ * - comments INSERT
+ * - posts.comments_cnt +1
+ * - 트랜잭션으로 정합성 유지
+ */
+@PostMapping("--코드작성--")
+public Map<String, Object> createComment(
+    @PathVariable("postId") int postId,
+    @RequestBody Map<String, Object> body,
+    HttpSession session
+) throws Exception {
+
+  // 1) 로그인 확인
+  Integer userId = requireLogin(session);
+  if (userId == null)
+    return fail("로그인 필요");
+
+  // 2) 입력값 파싱 + 검증
+  String comment = (String) body.get("comment");
+  if (comment == null || comment.isBlank())
+    return fail("입력값 오류");
+  if (comment.length() > 255)
+    return fail("입력값 오류");
+
+  String insertSql = """
+      --코드작성--
+      """;
+
+  String incSql = """
+      UPDATE posts
+      SET comments_cnt = comments_cnt + 1
+      WHERE id = ?
+      """;
+
+  try (Connection conn = dataSource.getConnection()) {
+    conn.setAutoCommit(false);
+
+    try {
+      int commentId;
+
+      // 3) 댓글 INSERT
+      try (PreparedStatement ps = conn.prepareStatement(
+          insertSql, Statement.RETURN_GENERATED_KEYS)) {
+
+        ps.setInt(1, postId);
+        ps.setInt(2, userId);
+        ps.setString(3, comment);
+
+        int affected = ps.executeUpdate();
+        if (affected != 1) {
+          conn.rollback();
+          return fail("입력 실패");
+        }
+
+        try (ResultSet keys = ps.getGeneratedKeys()) {
+          if (!keys.next()) {
+            conn.rollback();
+            return fail("생성된 comment_id 키 없음");
+          }
+          commentId = keys.getInt(1);
+        }
+      } catch (SQLIntegrityConstraintViolationException fk) {
+        // post_id FK 오류 (게시글 없음 등)
+        conn.rollback();
+        return fail("게시글 없음");
+      }
+
+      // 4) posts.comments_cnt +1
+      try (PreparedStatement ps = conn.prepareStatement(incSql)) {
+        ps.setInt(1, postId);
+        ps.executeUpdate();
+      }
+
+      conn.commit();
+      return ok(Map.of("comment_id", commentId));
+
+    } catch (Exception e) {
+      conn.rollback();
+      throw e;
+    } finally {
+      conn.setAutoCommit(true);
+    }
+  }
+}
+```
+### REST Client 테스트 추가 (api-test.http)
+```
+### 댓글 작성
+POST http://127.0.0.1:9091/api/posts/1/comments 
+Host: test.localhost
+Content-Type: application/json
+
+{
+  "comment": "수정된 댓글"
+}
+```
+
+## 4. 댓글 수정 API 메서드 작성하기
+### SQL 예시:
+```sql
+UPDATE comments
+SET comment = '댓글'
+WHERE id = 1
+```
+
+### `--코드작성--` 부분 수정하기
+```java
+/**
+ * PUT /comments/{commentId}
+ * - 로그인 필요
+ * - 댓글 작성자만 수정 가능
+ */
+@PutMapping("--코드작성--")
+public Map<String, Object> updateComment(
+    @PathVariable("commentId") int commentId,
+    @RequestBody Map<String, Object> body,
+    HttpSession session
+) throws Exception {
+
+  // 1) 로그인 확인
+  Integer userId = requireLogin(session);
+  if (userId == null)
+    return fail("로그인 필요");
+
+  // 2) 입력값 파싱 + 검증
+  String comment = (String) body.get("comment");
+  if (comment == null || comment.isBlank())
+    return fail("입력값 오류");
+  if (comment.length() > 255)
+    return fail("입력값 오류");
+
+  String ownerSql = """
+      SELECT user_id
+      FROM comments
+      WHERE id = ?
+      """;
+
+  String updateSql = """
+      --코드작성--
+      """;
+
+  try (Connection conn = dataSource.getConnection()) {
+
+    // 3) 댓글 존재 + 작성자 확인
+    Integer ownerId = null;
+    try (PreparedStatement ps = conn.prepareStatement(ownerSql)) {
+      ps.setInt(1, commentId);
+
+      try (ResultSet rs = ps.executeQuery()) {
+        if (!rs.next())
+          return fail("댓글 없음");
+        ownerId = rs.getInt("user_id");
+      }
+    }
+
+    // 4) 권한 확인
+    if (ownerId == null || ownerId.intValue() != userId.intValue())
+      return fail("권한 없음");
+
+    // 5) UPDATE
+    try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+      ps.setString(1, comment);
+      ps.setInt(2, commentId);
+
+      int updated = ps.executeUpdate();
+      return ok(Map.of("updated", updated));
+    }
+  }
+}
+```
+
+### REST Client 테스트 추가 (api-test.http)
+```
+### 댓글 수정
+PUT http://127.0.0.1:9091/api/comments/500070 
+Host: test.localhost
+Content-Type: application/json
+
+{
+  "comment": "수정된 댓글"
+}
 ```
