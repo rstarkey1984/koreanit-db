@@ -1618,6 +1618,12 @@ Content-Type: application/json
 
 ## 3. 댓글 작성 API 메서드 작성하기
 
+### posts 테이블 comments_cnt 컬럼 추가
+```sql
+ALTER TABLE `testdb`.`posts` 
+ADD COLUMN `comments_cnt` INT NOT NULL DEFAULT 0 AFTER `updated_at`;
+```
+
 ### SQL 예시:
 ```
 INSERT INTO comments (post_id, user_id, comment)
