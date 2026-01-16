@@ -39,13 +39,28 @@ docker build -t custom-php-fpm:8.3-alpine .
 
 ---
 
-# 스프링부트 API 서버
+# 스프링부트 API 이미지 테스트 및 빌드
 
 ```
 cd demo
 ```
+### 단독 실행 테스트
+```
+docker run --rm -p 9092:9092 --env-file .env --add-host host.docker.internal:host-gateway web-docker-api:1.0
+```
 
-## Docker Compose 설정을 기반으로 컨테이너 관리
+### Docker 이미지 빌드:
+```bash
+docker build -t web-docker-api:1.0 .
+```
+
+빌드 성공시:
+```
+docker images | grep web-docker-api
+```
+
+---
+# Docker Compose 설정을 기반으로 컨테이너 관리
 
 Docker Compose 실행:
 ```

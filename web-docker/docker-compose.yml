@@ -45,7 +45,7 @@ services:
     container_name: web-api
     restart: unless-stopped
     expose:
-      - "9090" # 컨테이너 내부 통신용 포트
+      - "9092" # 컨테이너 내부 통신용 포트
       # 외부 직접 접근 불가, nginx/php 에서만 접근
     env_file:
       - .env # DB, Redis 등 설정 공유

@@ -489,7 +489,7 @@ public class ApiController {
     // - users 테이블에서 일부 컬럼만 조회
     // - LIMIT 5로 결과 개수 제한
     // --------------------------------------------------
-    String sql = "SELECT id1, nickname FROM users LIMIT 5";
+    String sql = "SELECT id, nickname FROM users LIMIT 5";
 
     // --------------------------------------------------
     // SQL 결과를 담을 리스트

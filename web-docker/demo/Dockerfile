@@ -25,7 +25,7 @@ WORKDIR /app
 # 빌드 결과물 복사
 COPY --from=builder /app/build/libs/*.jar app.jar
 
-EXPOSE 9090
+EXPOSE 9092
 
 # 컨테이너 시작 시 Spring Boot 실행
 ENTRYPOINT ["java", "-jar", "app.jar"]
