@@ -1,0 +1,167 @@
+### ------------------------------------------------------------
+### (REST Client용) 127.0.0.1로 접속 + Host 헤더로 test.localhost 매칭
+### ------------------------------------------------------------
+
+@baseUrl = http://127.0.0.1:9091/api
+@vhost = test.localhost
+
+@username = user01
+@password = pass1234!
+@nickname = 닉네임01
+
+
+### 0) DB 연결 테스트
+GET {{baseUrl}}/db-debug
+Host: {{vhost}}
+
+
+### 1) 회원가입
+POST {{baseUrl}}/signup
+Host: {{vhost}}
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}",
+  "nickname": "{{nickname}}"
+}
+
+
+### 2) 로그인
+# REST Client에서 쿠키 유지:
+# settings.json에 아래 옵션 켜면 이후 요청에 JSESSIONID가 자동 포함됩니다.
+# "rest-client.rememberCookiesForSubsequentRequests": true
+POST {{baseUrl}}/login
+Host: {{vhost}}
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+
+### 3) 로그인 상태 확인
+GET {{baseUrl}}/me
+Host: {{vhost}}
+
+
+### 4) 내 프로필 조회(LEFT JOIN)
+GET {{baseUrl}}/me/profile
+Host: {{vhost}}
+
+
+### 5) 내 프로필 UPSERT (UPDATE 먼저 -> 없으면 INSERT)
+PUT {{baseUrl}}/me/profile
+Host: {{vhost}}
+Content-Type: application/json
+
+{
+  "bio": "자기소개입니다",
+  "phone": "010-1234-5678",
+  "birth_date": "2000-01-02",
+  "profile_image_url": "https://example.com/profile.png"
+}
+
+
+### 6) 내 프로필 재조회
+GET {{baseUrl}}/me/profile
+Host: {{vhost}}
+
+
+### 7) 다른 사용자 프로필 조회(예: 1번 사용자)
+GET {{baseUrl}}/users/1
+Host: {{vhost}}
+
+
+### 8) 게시글 목록(기본)
+GET {{baseUrl}}/posts
+Host: {{vhost}}
+
+
+### 9) 게시글 목록(페이징)
+GET {{baseUrl}}/posts?page=1000&pageSize=5
+Host: {{vhost}}
+
+
+### 10) 게시글 목록(검색: both)
+GET {{baseUrl}}/posts?page=1&pageSize=5&type=both&keyword=테스트
+Host: {{vhost}}
+
+
+### 11) 게시글 작성
+# 응답의 data.post_id 값을 아래에 복사해서 사용
+POST {{baseUrl}}/posts
+Host: {{vhost}}
+Content-Type: application/json
+
+{
+  "title": "테스트 글 제목",
+  "content": "테스트 글 내용"
+}
+
+
+### 12) 게시글 상세 조회(조회수 증가 + viewer_key 반환)
+GET {{baseUrl}}/posts/1
+Host: {{vhost}}
+
+
+### 13) 게시글 상세 조회(같은 viewer_key로 조회수 중복 방지 확인)
+GET {{baseUrl}}/posts/1?viewer_key=g:YOUR_VIEWER_KEY_HERE
+Host: {{vhost}}
+
+
+### 14) 게시글 수정(작성자 본인만)
+PUT {{baseUrl}}/posts/1
+Host: {{vhost}}
+Content-Type: application/json
+
+{
+  "title": "수정된 제목",
+  "content": "수정된 내용"
+}
+
+
+### 15) 댓글 목록
+GET {{baseUrl}}/posts/1/comments
+Host: {{vhost}}
+
+
+### 16) 댓글 작성(로그인 필요)
+POST {{baseUrl}}/posts/1/comments
+Host: {{vhost}}
+Content-Type: application/json
+
+{
+  "comment": "첫 댓글입니다"
+}
+
+
+### 17) 댓글 수정(작성자 본인만)
+PUT {{baseUrl}}/comments/500057
+Host: {{vhost}}
+Content-Type: application/json
+
+{
+  "comment": "댓글 수정본"
+}
+
+
+### 18) 댓글 삭제(작성자 본인만)
+DELETE {{baseUrl}}/comments/1
+Host: {{vhost}}
+
+
+### 19) 게시글 삭제(작성자 본인만)
+DELETE {{baseUrl}}/posts/1
+Host: {{vhost}}
+
+
+### 20) 로그아웃
+POST {{baseUrl}}/logout
+Host: {{vhost}}
+
+
+### 21) 로그인 상태 확인(로그아웃 후)
+GET {{baseUrl}}/me
+Host: {{vhost}}

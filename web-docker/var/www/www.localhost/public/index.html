@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Board</title>
+
+  <!-- Vue 3 (CDN) -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #111319;
+      --panel2: #0f1116;
+      --border: #232633;
+      --text: #e9ecf1;
+      --muted: #a4adbb;
+      --accent: #6aa9ff;
+      --danger: #ff6b6b;
+      --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 20% 0%, #111a2b 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .container {
+      width: min(1180px, 92vw);
+      margin: 0 auto;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(11, 12, 16, .72);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 99px;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(106, 169, 255, .12);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: .2px;
+    }
+
+    .right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .02);
+    }
+
+    main {
+      padding: 16px 0 28px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 980px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 14px 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    .btn {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(106, 169, 255, .14);
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .btn:hover {
+      border-color: rgba(106, 169, 255, .45);
+    }
+
+    .btn.ghost {
+      background: transparent;
+    }
+
+    .btn.danger {
+      background: rgba(255, 107, 107, .12);
+      border-color: rgba(255, 107, 107, .35);
+    }
+
+    .btn.danger:hover {
+      border-color: rgba(255, 107, 107, .6);
+    }
+
+    .form {
+      display: grid;
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 10px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #0b0d12;
+      color: var(--text);
+      outline: none;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 520px) {
+      .cols {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(255, 255, 255, .02);
+    }
+
+    .box h3 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .postsLayout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .postsLayout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .list {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .item {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(255, 255, 255, .02);
+    }
+
+    .item:hover {
+      border-color: rgba(106, 169, 255, .4);
+    }
+
+    .titleRow {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .link {
+      border: none;
+      background: none;
+      color: var(--accent);
+      cursor: pointer;
+      padding: 0;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .metaRow {
+      margin-top: 7px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: rgba(255, 255, 255, .02);
+    }
+
+    .kv {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .kv b {
+      color: #dfe7f5;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .pager {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .pager input {
+      width: 72px;
+      text-align: center;
+    }
+
+    .toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: min(460px, 92vw);
+      background: rgba(17, 19, 25, .9);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .toast .t1 {
+      font-size: 13px;
+    }
+
+    .toast .t2 {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+      white-space: pre-wrap;
+    }
+
+    .toast .x {
+      float: right;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <header>
+      <div class="container top">
+        <div class="brand">
+          <span class="dot"></span>
+          <h1>Board</h1>
+          <span class="badge">
+            <span>API</span>
+            <span class="small">{{ apiBaseLabel }}</span>
+          </span>
+        </div>
+
+        <div class="right">
+          <span class="badge">
+            <span>세션</span>
+            <span v-if="me.logged_in">로그인됨 (user_id={{ me.user_id }})</span>
+            <span v-else>비로그인</span>
+          </span>
+          <button class="btn ghost" @click="refreshMe">상태 새로고침</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="grid">
+        <!-- LEFT -->
+        <section class="card">
+          <h2>인증</h2>
+          <div class="cols">
+            <div class="box">
+              <h3>회원가입</h3>
+              <div class="form">
+                <label>아이디
+                  <input v-model.trim="signupForm.username" placeholder="username" />
+                </label>
+                <label>비밀번호
+                  <input v-model.trim="signupForm.password" type="password" placeholder="password" />
+                </label>
+                <label>닉네임
+                  <input v-model.trim="signupForm.nickname" placeholder="nickname" />
+                </label>
+                <button class="btn" @click="signup">회원가입</button>
+              </div>
+            </div>
+
+            <div class="box">
+              <h3>로그인</h3>
+              <div class="form">
+                <label>아이디
+                  <input v-model.trim="loginForm.username" placeholder="username" />
+                </label>
+                <label>비밀번호
+                  <input v-model.trim="loginForm.password" type="password" placeholder="password" />
+                </label>
+                <div class="row">
+                  <button class="btn" @click="login">로그인</button>
+                  <button class="btn danger" @click="logout">로그아웃</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <h2>내 프로필</h2>
+          <div class="row">
+            <button class="btn ghost" @click="loadMyProfile">조회</button>
+            <button class="btn" @click="saveMyProfile">저장(UPSERT)</button>
+          </div>
+
+          <div class="form" style="margin-top:10px;">
+            <label>bio
+              <textarea rows="3" v-model="profileForm.bio" placeholder="자기소개"></textarea>
+            </label>
+            <label>phone
+              <input v-model.trim="profileForm.phone" placeholder="010-1234-5678" />
+            </label>
+            <label>birth_date (YYYY-MM-DD)
+              <input v-model.trim="profileForm.birth_date" placeholder="2000-01-02" />
+            </label>
+            <label>profile_image_url
+              <input v-model.trim="profileForm.profile_image_url" placeholder="https://..." />
+            </label>
+          </div>
+
+          <div class="divider"></div>
+
+          <h2>최근 로그</h2>
+          <div class="panel">
+            <div class="small" style="white-space:pre-wrap;">{{ lastLog }}</div>
+          </div>
+        </section>
+
+        <!-- RIGHT -->
+        <section class="card">
+          <div class="row" style="justify-content:space-between;">
+            <h2 style="margin:0;">게시글</h2>
+            <div class="row">
+              <button class="btn ghost" @click="loadPosts(true)">목록 새로고침</button>
+              <button class="btn" @click="openNewPost">새 글</button>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <select v-model="postsQuery.type" style="width:140px;">
+              <option value="both">제목+내용</option>
+              <option value="title">제목</option>
+              <option value="content">내용</option>
+            </select>
+            <input v-model.trim="postsQuery.keyword" placeholder="검색어" />
+            <button class="btn ghost" @click="search">검색</button>
+
+            <div class="spacer"></div>
+
+            <label class="muted" style="display:flex; gap:8px; align-items:center;">
+              pageSize
+              <select v-model.number="postsQuery.pageSize" style="width:110px;">
+                <option :value="5">5</option>
+                <option :value="20">20</option>
+                <option :value="30">30</option>
+                <option :value="50">50</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="postsLayout" style="margin-top:12px;">
+            <!-- list -->
+            <div>
+              <div class="muted">total={{ posts.total }}, items={{ posts.items.length }}</div>
+
+              <ul class="list">
+                <li class="item" v-for="p in posts.items" :key="p.id">
+                  <div class="titleRow">
+                    <button class="link" @click="openPost(p.id)">
+                      #{{ p.id }} {{ p.title }}
+                    </button>
+                    <span class="badge">v:{{ p.view_count }} c:{{ p.comments_cnt }}</span>
+                  </div>
+                  <div class="metaRow">
+                    <span>user_id={{ p.user_id }}</span>
+                    <span class="small">{{ p.created_at }}</span>
+                  </div>
+                </li>
+              </ul>
+
+              <div class="pager">
+                <button class="btn ghost" @click="prevPage">이전</button>
+                <div class="row">
+                  <span class="muted">page</span>
+                  <input type="number" min="1" v-model.number="postsQuery.page" @change="loadPosts(false)" />
+                  <span class="muted">/ {{ totalPages }}</span>
+                </div>
+                <button class="btn ghost" @click="nextPage">다음</button>
+              </div>
+            </div>
+
+            <!-- detail -->
+            <div class="panel">
+              <h2 style="margin:0;">상세</h2>
+
+              <div v-if="!selectedPost" class="muted" style="margin-top:10px;">
+                왼쪽에서 게시글을 선택하세요.
+              </div>
+
+              <div v-else class="kv">
+                <div><b>id</b>: {{ selectedPost.id }}</div>
+                <div><b>user_id</b>: {{ selectedPost.user_id }}</div>
+                <div><b>title</b>: {{ selectedPost.title }}</div>
+                <div><b>content</b>: <div class="small">{{ selectedPost.content }}</div>
+                </div>
+                <div><b>view_count</b>: {{ selectedPost.view_count }}</div>
+                <div><b>comments_cnt</b>: {{ selectedPost.comments_cnt }}</div>
+                <div><b>created_at</b>: <span class="small">{{ selectedPost.created_at }}</span></div>
+                <div><b>viewer_key</b>: <span class="small">{{ selectedPost.viewer_key }}</span></div>
+              </div>
+
+              <div class="divider"></div>
+
+              <h2 style="margin:0;">글 작성/수정</h2>
+              <div class="form" style="margin-top:10px;">
+                <label>title (최대 45)
+                  <input maxlength="45" v-model.trim="postForm.title" placeholder="제목" />
+                </label>
+                <label>content
+                  <textarea rows="5" v-model="postForm.content" placeholder="내용"></textarea>
+                </label>
+                <div class="row">
+                  <button class="btn" @click="savePost">저장</button>
+                  <button class="btn ghost" @click="cancelPostEdit">취소</button>
+                  <button class="btn danger" @click="deletePost" :disabled="!postForm.id">삭제</button>
+                </div>
+                <div class="muted" v-if="postForm.id">수정 모드: post_id={{ postForm.id }}</div>
+              </div>
+
+              <div class="divider"></div>
+
+              <h2 style="margin:0;">댓글</h2>
+              <div class="form" style="margin-top:10px;">
+                <label>comment (최대 255)
+                  <textarea rows="3" v-model="commentForm.comment" placeholder="댓글"></textarea>
+                </label>
+                <div class="row">
+                  <button class="btn" @click="addComment" :disabled="!selectedPost">작성</button>
+                  <button class="btn ghost" @click="updateComment" :disabled="!commentForm.id">수정</button>
+                  <button class="btn ghost" @click="cancelCommentEdit">취소</button>
+                </div>
+                <div class="muted" v-if="commentForm.id">수정 모드: comment_id={{ commentForm.id }}</div>
+              </div>
+
+              <ul class="list" style="margin-top:12px;">
+                <li class="item" v-for="c in comments" :key="c.id">
+                  <div class="titleRow">
+                    <div class="muted">#{{ c.id }} (user_id={{ c.user_id }})</div>
+                    <div class="small">{{ c.created_at }}</div>
+                  </div>
+                  <div class="small" style="margin-top:8px;">{{ c.comment }}</div>
+                  <div class="row" style="margin-top:10px;">
+                    <button class="btn ghost" @click="editComment(c)">수정</button>
+                    <button class="btn danger" @click="removeComment(c.id)">삭제</button>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="toast" v-if="toast.show">
+        <button class="x" @click="toast.show=false">✕</button>
+        <div class="t1">{{ toast.title }}</div>
+        <div class="t2">{{ toast.body }}</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          apiBase: "http://www.localhost",
+          apiPrefix: "/api",
+
+          me: { logged_in: false, user_id: null },
+
+          signupForm: { username: "", password: "", nickname: "" },
+          loginForm: { username: "", password: "" },
+
+          profileForm: { bio: "", phone: "", birth_date: "", profile_image_url: "" },
+
+          postsQuery: { page: 1, pageSize: 5, type: "both", keyword: "" },
+          posts: { total: 0, items: [] },
+
+          selectedPost: null,
+          postForm: { id: null, title: "", content: "" },
+
+          comments: [],
+          commentForm: { id: null, comment: "" },
+
+          lastLog: "",
+          toast: { show: false, title: "", body: "" },
+        };
+      },
+
+      computed: {
+        totalPages() {
+          const t = this.posts.total || 0;
+          const ps = this.postsQuery.pageSize || 20;
+          return Math.max(1, Math.ceil(t / ps));
+        },
+        apiBaseLabel() {
+          return (this.apiBase || "(same-origin)") + (this.apiPrefix || "");
+        }
+      },
+
+      methods: {
+        notify(title, body) {
+          this.toast = { show: true, title, body: body ?? "" };
+          // 너무 거슬리면 자동 닫기 제거해도 됨
+          setTimeout(() => { this.toast.show = false; }, 2500);
+        },
+
+        async request(path, options = {}) {
+          const url = (this.apiBase || "") + (this.apiPrefix || "") + path;
+          const opts = {
+            method: options.method || "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...(options.headers || {}),
+            },
+            credentials: "include",
+            ...options,
+          };
+          if (opts.body && typeof opts.body !== "string") {
+            opts.body = JSON.stringify(opts.body);
+          }
+
+          const res = await fetch(url, opts);
+          const text = await res.text();
+          let json = null;
+
+          try { json = text ? JSON.parse(text) : null; }
+          catch { json = { ok: false, message: "JSON 파싱 실패", raw: text }; }
+
+          if (!res.ok) {
+            return { ok: false, message: `HTTP ${res.status}`, data: json };
+          }
+          return json;
+        },
+
+        log(label, payload) {
+          const line = typeof payload === "string"
+            ? payload
+            : (() => { try { return JSON.stringify(payload, null, 2); } catch { return String(payload); } })();
+          this.lastLog = `[${label}]\n${line}`;
+        },
+
+        // -------------------------
+        // Auth
+        // -------------------------
+        async refreshMe() {
+          const r = await this.request("/me");
+          if (r?.ok) {
+            this.me = r.data;
+          } else {
+            this.log("/me fail", r);
+            this.notify("세션 상태 확인 실패", r?.message || "");
+          }
+        },
+
+        async signup() {
+          const body = {
+            username: this.signupForm.username?.trim(),
+            password: this.signupForm.password?.trim(),
+            nickname: this.signupForm.nickname?.trim(),
+          };
+          const r = await this.request("/signup", { method: "POST", body });
+          if (r?.ok) {
+            this.log("signup ok", r.data);
+            this.notify("회원가입 완료", `user_id=${r.data.user_id}`);
+          } else {
+            this.log("signup fail", r?.message || "");
+            this.notify("회원가입 실패", r?.message || "");
+          }
+        },
+
+        async login() {
+          const body = {
+            username: this.loginForm.username?.trim(),
+            password: this.loginForm.password?.trim(),
+          };
+          const r = await this.request("/login", { method: "POST", body });
+          if (r?.ok) {
+            this.log("login ok", r.data);
+            this.notify("로그인 완료", `user_id=${r.data.user_id}`);
+            await this.refreshMe();
+          } else {
+            this.log("login fail", r?.message || "");
+            this.notify("로그인 실패", r?.message || "");
+          }
+        },
+
+        async logout() {
+          const r = await this.request("/logout", { method: "POST", body: {} });
+          if (r?.ok) {
+            this.log("logout ok", "");
+            this.notify("로그아웃", "");
+            await this.refreshMe();
+          } else {
+            this.log("logout fail", r?.message || "");
+            this.notify("로그아웃 실패", r?.message || "");
+          }
+        },
+
+        // -------------------------
+        // Profile
+        // -------------------------
+        async loadMyProfile() {
+          const r = await this.request("/me/profile");
+          if (r?.ok) {
+            const d = r.data || {};
+            this.profileForm.bio = d.bio ?? "";
+            this.profileForm.phone = d.phone ?? "";
+            this.profileForm.birth_date = d.birth_date ?? "";
+            this.profileForm.profile_image_url = d.profile_image_url ?? "";
+            this.log("myProfile ok", d);
+            this.notify("프로필 조회", "");
+          } else {
+            this.log("myProfile fail", r?.message || "");
+            this.notify("프로필 조회 실패", r?.message || "");
+          }
+        },
+
+        async saveMyProfile() {
+          const body = {
+            bio: this.profileForm.bio?.trim() || null,
+            phone: this.profileForm.phone?.trim() || null,
+            birth_date: this.profileForm.birth_date?.trim() || null,
+            profile_image_url: this.profileForm.profile_image_url?.trim() || null,
+          };
+          const r = await this.request("/me/profile", { method: "PUT", body });
+          if (r?.ok) {
+            this.log("profile upsert ok", r.data);
+            this.notify("프로필 저장", "");
+            await this.loadMyProfile();
+          } else {
+            this.log("profile upsert fail", r?.message || "");
+            this.notify("프로필 저장 실패", r?.message || "");
+          }
+        },
+
+        // -------------------------
+        // Posts
+        // -------------------------
+        buildPostsQuery() {
+          const q = new URLSearchParams();
+          q.set("page", String(this.postsQuery.page || 1));
+          q.set("pageSize", String(this.postsQuery.pageSize || 20));
+
+          const keyword = (this.postsQuery.keyword || "").trim();
+          if (keyword) {
+            q.set("type", this.postsQuery.type || "both");
+            q.set("keyword", keyword);
+          }
+          return q.toString();
+        },
+
+        async loadPosts(resetPage) {
+          if (resetPage) this.postsQuery.page = 1;
+          const qs = this.buildPostsQuery();
+          const r = await this.request(`/posts?${qs}`);
+          if (r?.ok) {
+            this.posts.total = r.data.total || 0;
+            this.posts.items = r.data.items || [];
+          } else {
+            this.log("posts fail", r?.message || "");
+            this.notify("목록 조회 실패", r?.message || "");
+          }
+        },
+
+        async openPost(id) {
+          const r = await this.request(`/posts/${id}`);
+          if (r?.ok) {
+            this.selectedPost = r.data;
+            this.postForm.id = r.data.id;
+            this.postForm.title = r.data.title || "";
+            this.postForm.content = r.data.content || "";
+            await this.loadComments();
+          } else {
+            this.log("post detail fail", r?.message || "");
+            this.notify("상세 조회 실패", r?.message || "");
+          }
+        },
+
+        openNewPost() {
+          this.selectedPost = null;
+          this.postForm = { id: null, title: "", content: "" };
+          this.comments = [];
+          this.commentForm = { id: null, comment: "" };
+          this.notify("새 글", "작성 모드로 전환");
+        },
+
+        async savePost() {
+          const title = (this.postForm.title || "").trim();
+          const content = (this.postForm.content || "").trim();
+          if (!title || !content) {
+            this.notify("입력값 오류", "title/content는 필수입니다");
+            return;
+          }
+
+          if (!this.postForm.id) {
+            // create
+            const r = await this.request("/posts", { method: "POST", body: { title, content } });
+            if (r?.ok) {
+              this.log("create post ok", r.data);
+              this.notify("글 작성 완료", `post_id=${r.data.post_id}`);
+              await this.loadPosts(false);
+              await this.openPost(r.data.post_id);
+            } else {
+              this.log("create post fail", r?.message || "");
+              this.notify("글 작성 실패", r?.message || "");
+            }
+          } else {
+            // update
+            const id = this.postForm.id;
+            const r = await this.request(`/posts/${id}`, { method: "PUT", body: { title, content } });
+            if (r?.ok) {
+              this.log("update post ok", r.data);
+              this.notify("글 수정 완료", "");
+              await this.loadPosts(false);
+              await this.openPost(id);
+            } else {
+              this.log("update post fail", r?.message || "");
+              this.notify("글 수정 실패", r?.message || "");
+            }
+          }
+        },
+
+        async deletePost() {
+          const id = this.postForm.id;
+          if (!id) {
+            this.notify("삭제 불가", "삭제할 글이 선택되지 않았습니다");
+            return;
+          }
+          const r = await this.request(`/posts/${id}`, { method: "DELETE" });
+          if (r?.ok) {
+            this.log("delete post ok", r.data);
+            this.notify("글 삭제", "");
+            this.openNewPost();
+            await this.loadPosts(false);
+          } else {
+            this.log("delete post fail", r?.message || "");
+            this.notify("글 삭제 실패", r?.message || "");
+          }
+        },
+
+        cancelPostEdit() {
+          if (this.selectedPost?.id) {
+            // 선택된 글이 있으면 편집폼을 상세값으로 되돌림
+            this.postForm.id = this.selectedPost.id;
+            this.postForm.title = this.selectedPost.title || "";
+            this.postForm.content = this.selectedPost.content || "";
+          } else {
+            this.openNewPost();
+          }
+        },
+
+        search() {
+          this.postsQuery.page = 1;
+          this.loadPosts(false);
+        },
+        prevPage() {
+          this.postsQuery.page = Math.max(1, (this.postsQuery.page || 1) - 1);
+          this.loadPosts(false);
+        },
+        nextPage() {
+          this.postsQuery.page = (this.postsQuery.page || 1) + 1;
+          this.loadPosts(false);
+        },
+
+        // -------------------------
+        // Comments
+        // -------------------------
+        async loadComments() {
+          if (!this.selectedPost?.id) return;
+          const r = await this.request(`/posts/${this.selectedPost.id}/comments`);
+          if (r?.ok) {
+            this.comments = (r.data.items || []);
+          } else {
+            this.comments = [];
+            this.log("comments fail", r?.message || "");
+          }
+        },
+
+        async addComment() {
+          if (!this.selectedPost?.id) {
+            this.notify("댓글 작성", "게시글을 먼저 선택하세요");
+            return;
+          }
+          const comment = (this.commentForm.comment || "").trim();
+          if (!comment) {
+            this.notify("입력값 오류", "comment는 필수입니다");
+            return;
+          }
+          const r = await this.request(`/posts/${this.selectedPost.id}/comments`, {
+            method: "POST",
+            body: { comment }
+          });
+          if (r?.ok) {
+            this.notify("댓글 작성 완료", `comment_id=${r.data.comment_id}`);
+            this.commentForm = { id: null, comment: "" };
+            await this.openPost(this.selectedPost.id); // 상세/카운트 갱신
+          } else {
+            this.notify("댓글 작성 실패", r?.message || "");
+          }
+        },
+
+        editComment(c) {
+          this.commentForm.id = c.id;
+          this.commentForm.comment = c.comment || "";
+        },
+
+        async updateComment() {
+          const id = this.commentForm.id;
+          if (!id) {
+            this.notify("수정 불가", "수정할 댓글을 선택하세요");
+            return;
+          }
+          const comment = (this.commentForm.comment || "").trim();
+          if (!comment) {
+            this.notify("입력값 오류", "comment는 필수입니다");
+            return;
+          }
+          const r = await this.request(`/comments/${id}`, {
+            method: "PUT",
+            body: { comment }
+          });
+          if (r?.ok) {
+            this.notify("댓글 수정 완료", "");
+            this.commentForm = { id: null, comment: "" };
+            await this.loadComments();
+          } else {
+            this.notify("댓글 수정 실패", r?.message || "");
+          }
+        },
+
+        async removeComment(id) {
+          const r = await this.request(`/comments/${id}`, { method: "DELETE" });
+          if (r?.ok) {
+            this.notify("댓글 삭제", "");
+            this.commentForm = { id: null, comment: "" };
+            // 댓글 수 반영 위해 상세 재조회
+            if (this.selectedPost?.id) await this.openPost(this.selectedPost.id);
+          } else {
+            this.notify("댓글 삭제 실패", r?.message || "");
+          }
+        },
+
+        cancelCommentEdit() {
+          this.commentForm = { id: null, comment: "" };
+        },
+      },
+
+      async mounted() {
+        // 초기 로드
+        await this.refreshMe();
+        await this.loadPosts(true);
+      }
+    }).mount("#app");
+  </script>
+</body>
+
+</html>
