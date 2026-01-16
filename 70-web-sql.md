@@ -1618,6 +1618,12 @@ Content-Type: application/json
 
 ## 3. 댓글 작성 API 메서드 작성하기
 
+### posts 테이블 comments_cnt 컬럼 추가
+```sql
+ALTER TABLE `testdb`.`posts` 
+ADD COLUMN `comments_cnt` INT NOT NULL DEFAULT 0 AFTER `updated_at`;
+```
+
 ### SQL 예시:
 ```
 INSERT INTO comments (post_id, user_id, comment)
@@ -1641,10 +1647,13 @@ public Map<String, Object> createComment(
     HttpSession session
 ) throws Exception {
 
-  // 1) 로그인 확인
-  Integer userId = requireLogin(session);
-  if (userId == null)
+  // 1) 로그인 여부 확인
+  Object userIdObj = session.getAttribute("user_id");
+  if (userIdObj == null) {
     return fail("로그인 필요");
+  }
+
+  int userId = (int) userIdObj;
 
   // 2) 입력값 파싱 + 검증
   String comment = (String) body.get("comment");
@@ -1671,7 +1680,7 @@ public Map<String, Object> createComment(
 
       // 3) 댓글 INSERT
       try (PreparedStatement ps = conn.prepareStatement(
-          insertSql, Statement.RETURN_GENERATED_KEYS)) {
+          insertSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
 
         ps.setInt(1, postId);
         ps.setInt(2, userId);
@@ -1748,10 +1757,13 @@ public Map<String, Object> updateComment(
     HttpSession session
 ) throws Exception {
 
-  // 1) 로그인 확인
-  Integer userId = requireLogin(session);
-  if (userId == null)
+  // 1) 로그인 여부 확인
+  Object userIdObj = session.getAttribute("user_id");
+  if (userIdObj == null) {
     return fail("로그인 필요");
+  }
+
+  int userId = (int) userIdObj;
 
   // 2) 입력값 파싱 + 검증
   String comment = (String) body.get("comment");

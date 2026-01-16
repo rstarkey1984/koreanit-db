@@ -90,58 +90,83 @@ CREATE TABLE comments (
 
 ## 0-2. 데이터 생성
 ```sql
+-- =========================
+-- 0) 초기화 (FK 끊고 TRUNCATE)
+-- =========================
 SET FOREIGN_KEY_CHECKS = 0;
 
-TRUNCATE comments;
-TRUNCATE posts;
-TRUNCATE users;
+TRUNCATE TABLE comments;
+TRUNCATE TABLE posts;
+TRUNCATE TABLE users;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =========================
--- seed data
+-- 1) numbers 테이블 생성 (1 ~ 1,000,000)
+--    한번 만들어두면 계속 재사용 가능
 -- =========================
-SET SESSION cte_max_recursion_depth = 1000000;
+DROP TABLE IF EXISTS numbers;
+CREATE TABLE numbers (
+  n INT NOT NULL PRIMARY KEY
+) ENGINE=InnoDB;
 
--- ===== users (100)
+INSERT INTO numbers (n)
+SELECT a.i + b.i*10 + c.i*100 + d.i*1000 + e.i*10000 + f.i*100000 + 1 AS n
+FROM (SELECT 0 i UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) a
+CROSS JOIN (SELECT 0 i UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) b
+CROSS JOIN (SELECT 0 i UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) c
+CROSS JOIN (SELECT 0 i UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) d
+CROSS JOIN (SELECT 0 i UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) e
+CROSS JOIN (SELECT 0 i UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) f;
+
+-- =========================
+-- 2) users 100명
+-- =========================
 INSERT INTO users (username, email, password, nickname)
 SELECT
   CONCAT('user', n),
   CONCAT('user', n, '@test.com'),
   '$2a$10$abcdefghijklmnopqrstuvwxyz1234567890abcdef', -- 더미 bcrypt 해시
   CONCAT('user_', n)
-FROM (
-  WITH RECURSIVE seq(n) AS (
-    SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n < 100
-  ) SELECT n FROM seq
-) t;
+FROM numbers
+WHERE n <= 100;
 
--- ===== posts (1000k)
+-- =========================
+-- 3) posts 1,000,000개 (속도 우선: RAND 제거)
+-- =========================
 INSERT INTO posts (user_id, title, content, view_count, created_at)
 SELECT
-  FLOOR(1 + RAND() * 100),
+  1 + (n % 100) AS user_id,
   CONCAT('게시글 제목 ', n),
   CONCAT('게시글 내용 ', n),
-  FLOOR(RAND() * 50000),
-  NOW() - INTERVAL FLOOR(RAND() * 365) DAY
-FROM (
-  WITH RECURSIVE seq(n) AS (
-    SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n < 1000000
-  ) SELECT n FROM seq
-) t;
+  (n * 37) % 50000 AS view_count,
+  NOW() - INTERVAL (n % 365) DAY AS created_at
+FROM numbers
+WHERE n <= 1000000;
 
--- ===== comments (500k)
+-- =========================
+-- 4) comments 500,000개 (속도 우선: RAND 제거)
+-- =========================
 INSERT INTO comments (post_id, user_id, comment, created_at)
 SELECT
-  FLOOR(1 + RAND() * 1000000),
-  FLOOR(1 + RAND() * 100),
+  1 + (n % 1000000) AS post_id,
+  1 + (n % 100)     AS user_id,
   CONCAT('댓글 내용 ', n),
-  NOW() - INTERVAL FLOOR(RAND() * 365) DAY
-FROM (
-  WITH RECURSIVE seq(n) AS (
-    SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n < 500000
-  ) SELECT n FROM seq
-) t;
+  NOW() - INTERVAL (n % 365) DAY AS created_at
+FROM numbers
+WHERE n <= 500000;
+
+-- (선택) 확인
+SELECT (SELECT COUNT(*) FROM users) AS users_cnt,
+       (SELECT COUNT(*) FROM posts) AS posts_cnt,
+       (SELECT COUNT(*) FROM comments) AS comments_cnt;
+
 ```
 
 ---
