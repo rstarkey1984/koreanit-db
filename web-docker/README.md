@@ -20,19 +20,11 @@ rm -rf .git
 ## 컨테이너로 전달할 환경변수 설정
 
 ### `web-docker/demo/.env` 파일 수정
-```
-DB_HOST=host.docker.internal
-DB_PORT=3308
-DB_NAME=testdb
-DB_USER=test
-DB_PASS=test123
-DB_CHARSET=utf8mb4
-```
-
----
-
 
 # PHP-FPM 이미지 빌드
+```
+cd web-docker
+```
 ```
 docker build -t custom-php-fpm:8.3-alpine .
 ```
@@ -44,9 +36,13 @@ docker build -t custom-php-fpm:8.3-alpine .
 ```
 cd demo
 ```
+## gradlew 실행권한 +
+```
+chmod +x gradlew
+```
 ### 단독 실행 테스트
 ```
-docker run --rm -p 9092:9092 --env-file .env --add-host host.docker.internal:host-gateway web-docker-api:1.0
+docker run --rm -p 9092:9092 --env-file ../.env --add-host host.docker.internal:host-gateway web-docker-api:1.0
 ```
 
 ### Docker 이미지 빌드:
