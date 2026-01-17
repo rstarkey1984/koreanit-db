@@ -16,6 +16,15 @@ git clone --filter=blob:none --no-checkout https://github.com/rstarkey1984/korea
 rm -rf .git
 ```
 
+## 프로젝트 디렉터리
+
+```
+web-docker 
+  demo -- 스프링부트 api 서버
+  nginx -- nginx 설정파일
+  var/www -- nginx document root 폴더 ( html,css,js,php 등 )
+```
+
 
 ## 컨테이너로 전달할 환경변수 설정
 

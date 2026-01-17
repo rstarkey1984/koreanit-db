@@ -20,7 +20,7 @@
 # 0. 시드 데이터 준비
 
 
-## 0-1. 테이블 생성 ( 선택 )
+## 0-1. 테이블 생성
 
 ```sql
 SET FOREIGN_KEY_CHECKS = 0;
@@ -28,6 +28,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS comments;
 DROP TABLE IF EXISTS posts;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS user_profiles;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -126,7 +127,7 @@ CROSS JOIN (SELECT 0 i UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 
       UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) f;
 
 -- =========================
--- 2) users 100명
+-- 2) users 10000명
 -- =========================
 INSERT INTO users (username, email, password, nickname)
 SELECT
@@ -135,38 +136,49 @@ SELECT
   '$2a$10$abcdefghijklmnopqrstuvwxyz1234567890abcdef', -- 더미 bcrypt 해시
   CONCAT('user_', n)
 FROM numbers
-WHERE n <= 100;
+WHERE n <= 10000;
 
 -- =========================
--- 3) posts 1,000,000개 (속도 우선: RAND 제거)
+-- 3) posts 1,000,000개 
 -- =========================
 INSERT INTO posts (user_id, title, content, view_count, created_at)
 SELECT
-  1 + (n % 100) AS user_id,
+  1 + (n % 10000) AS user_id,
   CONCAT('게시글 제목 ', n),
   CONCAT('게시글 내용 ', n),
-  (n * 37) % 50000 AS view_count,
+  n % 500 AS view_count,
   NOW() - INTERVAL (n % 365) DAY AS created_at
 FROM numbers
 WHERE n <= 1000000;
 
 -- =========================
--- 4) comments 500,000개 (속도 우선: RAND 제거)
+-- 4) comments 500,000개 
 -- =========================
 INSERT INTO comments (post_id, user_id, comment, created_at)
 SELECT
   1 + (n % 1000000) AS post_id,
-  1 + (n % 100)     AS user_id,
+  1 + (n % 10000)     AS user_id,
   CONCAT('댓글 내용 ', n),
   NOW() - INTERVAL (n % 365) DAY AS created_at
 FROM numbers
 WHERE n <= 500000;
 
+-- =========================
+-- 4) comments 500,000개 
+-- =========================
+INSERT INTO comments (post_id, user_id, comment, created_at)
+SELECT
+  1 + (n % 1000000) AS post_id,
+  1 + (n % 10000)     AS user_id,
+  CONCAT('댓글 내용 ', n),
+  NOW() - INTERVAL (n % 365) DAY AS created_at
+FROM numbers
+WHERE 500001 <= n and n <= 1000000;
+
 -- (선택) 확인
 SELECT (SELECT COUNT(*) FROM users) AS users_cnt,
        (SELECT COUNT(*) FROM posts) AS posts_cnt,
        (SELECT COUNT(*) FROM comments) AS comments_cnt;
-
 ```
 
 ---

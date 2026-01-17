@@ -46,7 +46,7 @@ ADD COLUMN `comments_cnt` INT NOT NULL DEFAULT 0 AFTER `updated_at`;
 ### (REST Client용) 127.0.0.1로 접속 + Host 헤더로 test.localhost 매칭
 ### ------------------------------------------------------------
 
-@baseUrl = http://127.0.0.1:9092api
+@baseUrl = http://127.0.0.1:9092/api
 @vhost = test.localhost
 
 @username = user01
