@@ -87,6 +87,26 @@ CREATE TABLE comments (
         FOREIGN KEY (user_id)
         REFERENCES users(id)
 );
+
+CREATE TABLE user_profiles (
+  user_id INT UNSIGNED NOT NULL,
+  bio VARCHAR(300) NULL,
+  phone VARCHAR(20) NULL,
+  birth_date DATE NULL,
+  profile_image_url VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_user_profiles_user
+    FOREIGN KEY (user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_general_ci;
 ```
 
 ## 0-2. 데이터 생성
