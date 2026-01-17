@@ -5,8 +5,8 @@
 @baseUrl = http://127.0.0.1:9092/api
 @vhost = test.localhost
 
-@username = user01
-@password = pass1234!
+@username = test
+@password = 123
 @nickname = 닉네임01
 
 
